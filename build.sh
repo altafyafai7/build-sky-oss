@@ -10,7 +10,7 @@ elif [ "$KVER" == "6.1" ]; then
   RELEASE="v0.1"
 fi
 
-KERNEL_NAME="SuvoKernel"
+KERNEL_NAME="SKY-OSS-"
 USER="Suvojeet"
 HOST="suvojeet-sengupta"
 TIMEZONE="Asia/Kolkata"
