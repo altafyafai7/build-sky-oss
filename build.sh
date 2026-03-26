@@ -308,9 +308,8 @@ if ksu_included && [ "$KSU_MANUAL_HOOK" == "true" ] && [ "$KSU" != "kernelsu" ];
   # kernel/reboot.c is handled exclusively by reboot-hook.patch below —
   # exclude it from manual-hook-v1.6 to prevent double-patching which causes
   # ksu_handle_sys_reboot() to land inside SYSCALL_DEFINE4 macro args → compile error.
-  patch -p1 --fuzz=5 --ignore-whitespace \
-    --exclude='kernel/reboot.c' \
-    < $KERNEL_PATCHES/hooks/manual-hook-v1.6.patch || true
+  filterdiff -x '*/kernel/reboot.c' $KERNEL_PATCHES/hooks/manual-hook-v1.6.patch \
+    | patch -p1 --fuzz=5 --ignore-whitespace || true
   patch -p1 --fuzz=5 --ignore-whitespace \
     < $KERNEL_PATCHES/hooks/reboot-hook.patch || true
   config --enable CONFIG_KSU_MANUAL_HOOK
