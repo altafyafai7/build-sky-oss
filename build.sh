@@ -495,16 +495,38 @@ fi
 # ── Telegram build notification message ───────────────────────────────────────
 text=$(
   cat << EOF
-*SuvoKernel — Redmi 12 5G (sky)*
+$KERNEL_NAME — Redmi 12 5G / Poco M6 Pro 5G (sky)
 
-*Kernel Version:* $LINUX_VERSION
-*Root Solution:* $VARIANT
-*SuSFS:* $(susfs_included && ksu_included && echo "$SUSFS_VERSION" || echo "None")
-*Link-Time Optimisation:* $LTO_MODE
-*Compiler:* $COMPILER_STRING
-*Build Date:* $KBUILD_BUILD_TIMESTAMP
+Technical Overview:
+OSS-based kernel for the sky platform (Redmi 12 5G / Poco M6 Pro 5G), engineered for stealth, system integrity, and hardware responsiveness.
 
-GKI-compliant build | CFI enabled | No Traces
+Core Specifications:
+- Kernel Version: $LINUX_VERSION
+- Root Solution: $VARIANT
+- SuSFS Version: ${SUSFS_VERSION:-None}
+- LTO Mode: $LTO_MODE
+- Compiler: $COMPILER_STRING
+- Build Date: $KBUILD_BUILD_TIMESTAMP
+
+Features & Security:
+- Root Implementation: KernelSU-Next + SuSFS + Manual Hooks integration by @suvojeet__sengupta.
+- Latency: Native 500Hz task frequency for improved UI fluidity.
+- SuSFS: SUS_PATH, SUS_MOUNT, SUS_KSTAT, SPOOF_UNAME, SPOOF_CMDLINE, OPEN_REDIRECT enabled.
+- Stability: Context-aware Python-injected reboot hooks for SuSFS/KSU integrity.
+- Hardware: Full vendor config merge for hardware_info.ko (FT8720/NT36672C support).
+
+Usage Warnings:
+- Device Specific: This is an OSS-based kernel for sky only.
+- Not Universal GKI: Do not flash on other devices or over prebuilt kernels.
+- Integrity: Mandatory KMI symbol verification and CFI enforced across all variants.
+
+Credits: 
+- lostark13: OSS Kernel source.
+- @AltafYafai: Upstreaming to latest.
+- @suvojeet__sengupta: Integration of KSU-Next, SuSFS, and all root-related logic.
+- tiann, simonpunk, pershoot, linastorvaldz, and the KernelSU community.
+
+Source: https://github.com/suvojeet-sengupta/build-vortex
 EOF
 )
 
