@@ -70,6 +70,12 @@ trap 'error "Failed at line $LINENO [$BASH_COMMAND]"' ERR
 # Import functions
 source $WORKDIR/functions.sh
 
+send_msg "🚀 *Build Started*
+Kernel: $KERNEL_NAME
+Version: $KVER
+User: $USER
+Host: $HOST"
+
 # Set timezone
 sudo timedatectl set-timezone "$TIMEZONE" || export TZ="$TIMEZONE"
 

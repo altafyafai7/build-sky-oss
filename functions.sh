@@ -87,6 +87,7 @@ config() {
 # Logging function
 log() {
   echo -e "[LOG] $*"
+  send_msg "🛠 [LOG]: $*"
 }
 
 error() {
