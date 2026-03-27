@@ -582,13 +582,13 @@ cp $KERNEL_IMAGE .
 zip -r9 $WORKDIR/$AK3_ZIP_NAME ./*
 cd $OLDPWD
 
-if [ "${STATUS}" != "BETA" ]; then
-  echo "BASE_NAME=$KERNEL_NAME-$VARIANT" >> $GITHUB_ENV
-  mkdir -p $WORKDIR/artifacts
-  mv $WORKDIR/*.zip $WORKDIR/artifacts
+mkdir -p $WORKDIR/artifacts
+echo "BASE_NAME=$KERNEL_NAME-$VARIANT" >> $GITHUB_ENV
+if [ -f "$WORKDIR/$AK3_ZIP_NAME" ]; then
+  mv $WORKDIR/$AK3_ZIP_NAME $WORKDIR/artifacts/
 fi
 
-if [ "${LAST_BUILD}" == "true" ] && [ "${STATUS}" != "BETA" ]; then
+if [ "${LAST_BUILD}" == "true" ] || [ "${STATUS}" != "BETA" ]; then
   (
     echo "LINUX_VERSION=$LINUX_VERSION"
     echo "SUSFS_VERSION=$(curl -s https://gitlab.com/simonpunk/susfs4ksu/raw/gki-android15-6.6/kernel_patches/include/linux/susfs.h | grep -E '^#define SUSFS_VERSION' | cut -d' ' -f3 | sed 's/"//g')"
@@ -598,7 +598,7 @@ if [ "${LAST_BUILD}" == "true" ] && [ "${STATUS}" != "BETA" ]; then
 fi
 
 if [ $STATUS == "BETA" ]; then
-  upload_file "$WORKDIR/$AK3_ZIP_NAME" "$text"
+  upload_file "$WORKDIR/artifacts/$AK3_ZIP_NAME" "$text"
   upload_file "$WORKDIR/build.log"
 else
   send_msg "Build completed successfully for $VARIANT variant. LTO: $LTO_MODE."
