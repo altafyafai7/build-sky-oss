@@ -14,30 +14,8 @@ KERNEL_NAME="SKY-OSS-"
 USER="Suvojeet"
 HOST="suvojeet-sengupta"
 TIMEZONE="Asia/Kolkata"
-ANYKERNEL_REPO="https://github.com/Kingfinik98/AnyKernel3"
-
-# Fixed Logic: 5.10 & 6.1 use gki_defconfig, others use quartix_defconfig
-if [ "$KVER" == "5.10" ]; then
-  KERNEL_DEFCONFIG="gki_defconfig"
-elif [ "$KVER" == "6.1" ]; then
-  KERNEL_DEFCONFIG="gki_defconfig"
-else
-  KERNEL_DEFCONFIG="gki_defconfig"
-fi
-
-if [ "$KVER" == "6.6" ]; then
-  KERNEL_REPO="https://github.com/ramabondanp/android_kernel_common-6.6.git"
-  ANYKERNEL_BRANCH="master"
-  KERNEL_BRANCH="android15-6.6-staging"
-elif [ "$KVER" == "6.1" ]; then
-  KERNEL_REPO="https://github.com/altafyafai7/6.1-oss.git"
-  ANYKERNEL_BRANCH="master"
-  KERNEL_BRANCH="main"
-elif [ "$KVER" == "5.10" ]; then
-  KERNEL_REPO="https://github.com/altafyafai7/android_kernel_xiaomi_sky_upstream.git"
-  ANYKERNEL_BRANCH="master"
-  KERNEL_BRANCH="smy"
-fi
+ANYKERNEL_REPO="https://github.com/AltafYafai/AnyKernel3"
+ANYKERNEL_BRANCH="sky"
 # sky (5.10 & 6.1): merge vendor configs so hardware_info.ko gets built,
 # which exports set_tpinfo_gki needed by FT8720 and NT36672C touchscreen drivers.
 if [ "$KVER" == "5.10" ]; then
