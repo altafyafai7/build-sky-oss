@@ -16,6 +16,26 @@ HOST="suvojeet-sengupta"
 TIMEZONE="Asia/Kolkata"
 ANYKERNEL_REPO="https://github.com/AltafYafai/AnyKernel3"
 ANYKERNEL_BRANCH="sky"
+
+# Fixed Logic: 5.10 & 6.1 use gki_defconfig, others use quartix_defconfig
+if [ "$KVER" == "5.10" ]; then
+  KERNEL_DEFCONFIG="gki_defconfig"
+elif [ "$KVER" == "6.1" ]; then
+  KERNEL_DEFCONFIG="gki_defconfig"
+else
+  KERNEL_DEFCONFIG="gki_defconfig"
+fi
+
+if [ "$KVER" == "6.6" ]; then
+  KERNEL_REPO="https://github.com/ramabondanp/android_kernel_common-6.6.git"
+  KERNEL_BRANCH="android15-6.6-staging"
+elif [ "$KVER" == "6.1" ]; then
+  KERNEL_REPO="https://github.com/altafyafai7/6.1-oss.git"
+  KERNEL_BRANCH="main"
+elif [ "$KVER" == "5.10" ]; then
+  KERNEL_REPO="https://github.com/altafyafai7/android_kernel_xiaomi_sky_upstream.git"
+  KERNEL_BRANCH="smy"
+fi
 # sky (5.10 & 6.1): merge vendor configs so hardware_info.ko gets built,
 # which exports set_tpinfo_gki needed by FT8720 and NT36672C touchscreen drivers.
 if [ "$KVER" == "5.10" ]; then
