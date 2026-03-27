@@ -275,6 +275,7 @@ jobs:
         with:
           tag_name: build-${{ github.run_number }}
           name: Build ${{ github.run_number }} - ${{ env.BASE_NAME }}
+          body_path: artifacts/release_notes.txt
           files: |
             artifacts/*.zip
             artifacts/*.img

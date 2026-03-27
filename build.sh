@@ -601,7 +601,8 @@ if [ $STATUS == "BETA" ]; then
   upload_file "$WORKDIR/artifacts/$AK3_ZIP_NAME" "$text"
   upload_file "$WORKDIR/build.log"
 else
-  send_msg "Build completed successfully for $VARIANT variant. LTO: $LTO_MODE."
+  send_msg "$text"
 fi
 
+echo "$text" > $WORKDIR/artifacts/release_notes.txt
 exit 0
