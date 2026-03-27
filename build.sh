@@ -30,18 +30,20 @@ if [ "$KVER" == "6.6" ]; then
   ANYKERNEL_BRANCH="master"
   KERNEL_BRANCH="android15-6.6-staging"
 elif [ "$KVER" == "6.1" ]; then
-  KERNEL_REPO="https://github.com/ramabondanp/android_kernel_common-6.1.git"
+  KERNEL_REPO="https://github.com/altafyafai7/6.1-oss.git"
   ANYKERNEL_BRANCH="master"
-  KERNEL_BRANCH="android14-6.1-staging"
+  KERNEL_BRANCH="main"
 elif [ "$KVER" == "5.10" ]; then
   KERNEL_REPO="https://github.com/altafyafai7/android_kernel_xiaomi_sky_upstream.git"
   ANYKERNEL_BRANCH="master"
-  KERNEL_BRANCH="oss-upstream"
+  KERNEL_BRANCH="smy"
 fi
-# sky (5.10): merge vendor configs so hardware_info.ko gets built,
+# sky (5.10 & 6.1): merge vendor configs so hardware_info.ko gets built,
 # which exports set_tpinfo_gki needed by FT8720 and NT36672C touchscreen drivers.
 if [ "$KVER" == "5.10" ]; then
   DEFCONFIG_TO_MERGE="arch/arm64/configs/vendor/sky_GKI.config"
+elif [ "$KVER" == "6.1" ]; then
+  DEFCONFIG_TO_MERGE="arch/arm64/configs/sky_GKI.fragment"
 else
   DEFCONFIG_TO_MERGE=""
 fi
