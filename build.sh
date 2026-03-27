@@ -527,12 +527,12 @@ Usage Warnings:
 - Integrity: Mandatory KMI symbol verification and CFI enforced across all variants.
 
 Credits: 
-- lostark13: OSS Kernel source.
+- @lostark13: OSS Kernel source.
 - @AltafYafai: Upstreaming to latest.
-- @suvojeet__sengupta: Integration of KSU-Next, SuSFS, and all root-related logic.
+- @suvojeet_sengupta: Integration of KSU-Next, SuSFS, and all root-related logic.
 - tiann, simonpunk, pershoot, linastorvaldz, and the KernelSU community.
 
-Source: https://github.com/suvojeet-sengupta/build-vortex
+Source: https://github.com/altafyafai7/android_kernel_xiaomi_sky_upstream.git
 EOF
 )
 
