@@ -603,11 +603,28 @@ if [ "${LAST_BUILD}" == "true" ] || [ "${STATUS}" != "BETA" ]; then
   ) >> $WORKDIR/artifacts/info.txt
 fi
 
-if [ $STATUS == "BETA" ]; then
-  upload_file "$WORKDIR/artifacts/$AK3_ZIP_NAME" "$text"
-  upload_file "$WORKDIR/build.log"
+# Send detailed message first
+send_msg "$text"
+
+# Always upload ZIP if found
+CAPTION="📦 Build: $AK3_ZIP_NAME
+Variant: $VARIANT
+LTO: $LTO_MODE"
+
+if [ -f "$WORKDIR/artifacts/$AK3_ZIP_NAME" ]; then
+  upload_file "$WORKDIR/artifacts/$AK3_ZIP_NAME" "$CAPTION"
 else
-  send_msg "$text"
+  # Fallback: if specific name fails, try any zip in artifacts
+  ZIP_FILE=$(ls $WORKDIR/artifacts/*.zip 2>/dev/null | head -n 1)
+  if [ -f "$ZIP_FILE" ]; then
+    upload_file "$ZIP_FILE" "$CAPTION"
+  else
+    send_msg "❌ Error: ZIP file not found in artifacts directory."
+  fi
+fi
+
+if [ $STATUS == "BETA" ]; then
+  upload_file "$WORKDIR/build.log"
 fi
 
 echo "$text" > $WORKDIR/artifacts/release_notes.txt
