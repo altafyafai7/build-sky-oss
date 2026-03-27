@@ -249,7 +249,7 @@ if susfs_included && [ "$KSU" == "next" ]; then
   LVER_2=$(echo "$LINUX_VERSION_CODE" | head -c2)
   LVER_1=$(echo "$LINUX_VERSION_CODE" | head -c1)
 
-  if [ "$LVER_4" -eq 6630 ] 2>/dev/null; then
+  if [ "$KVER" == "6.6" ] && [ "$LVER_4" -eq 6630 ] 2>/dev/null; then
     patch -p1 < $KERNEL_PATCHES/susfs/namespace.c_fix.patch
     patch -p1 < $KERNEL_PATCHES/susfs/task_mmu.c_fix.patch
   elif [ "$LVER_4" -eq 6658 ] 2>/dev/null; then
