@@ -36,7 +36,7 @@ elif [ "$KVER" == "6.1" ]; then
 elif [ "$KVER" == "5.10" ]; then
   KERNEL_REPO="https://github.com/altafyafai7/android_kernel_xiaomi_sky_upstream.git"
   ANYKERNEL_BRANCH="master"
-  KERNEL_BRANCH="smw"
+  KERNEL_BRANCH="smy"
 fi
 # sky (5.10): merge vendor configs so hardware_info.ko gets built,
 # which exports set_tpinfo_gki needed by FT8720 and NT36672C touchscreen drivers.
