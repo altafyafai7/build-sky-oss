@@ -1,6 +1,9 @@
 name: Build GKI (Stock)
 
 on:
+  push:
+    branches:
+      - stock-build
   workflow_dispatch:
     inputs:
       LTO:
@@ -46,7 +49,8 @@ jobs:
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          LTO: ${{ inputs.LTO }}
+          # Use input if available (dispatch), otherwise default to thin (push)
+          LTO: ${{ inputs.LTO || 'thin' }}
         run: |
           _error() {
               echo "❌ ERROR: $*"
@@ -67,7 +71,7 @@ jobs:
 
       - name: Maximise disk and create swap
         env:
-          LTO: ${{ inputs.LTO }}
+          LTO: ${{ inputs.LTO || 'thin' }}
         run: |
           sudo rm -rf /usr/local/lib/android /usr/local/share/boost /opt/ghc /opt/hostedtoolcache/CodeQL /usr/share/dotnet /usr/share/swift /usr/lib/jvm /usr/local/.ghcup /usr/local/share/powershell /usr/share/doc /usr/share/man || true
           sudo swapoff -a || true
@@ -89,7 +93,7 @@ jobs:
           LAST_BUILD: "true"
           TODO: "kernel"
           KVER: "6.1"
-          LTO: ${{ inputs.LTO }}
+          LTO: ${{ inputs.LTO || 'thin' }}
         run: |
           export GIT_CLONE_PROTECTION_ACTIVE=false
           chmod +x *.sh py/*.py
