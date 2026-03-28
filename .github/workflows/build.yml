@@ -1,43 +1,8 @@
-name: Build GKI
+name: Build GKI (Stock)
 
 on:
-  workflow_call:
-    inputs:
-      TODO:
-        type: string
-      LAST_BUILD:
-        type: string
-      KERNEL_VERSION:
-        type: string
-      LTO:
-        type: string
-
   workflow_dispatch:
     inputs:
-      TODO:
-        description: |
-          What to build:
-            kernel    → Full kernel + AnyKernel3 zip (default)
-            defconfig → Only dump .config and upload (for debug/review)
-        default: "kernel"
-        type: choice
-        options:
-          - "kernel"
-          - "defconfig"
-
-      KERNEL_VERSION:
-        description: |
-          Target kernel version to build:
-            5.10 → Xiaomi Redmi 12 5G (sky) — LineageOS 23.1 kernel
-            6.1  → GKI Android 14 common kernel
-            6.6  → GKI Android 15 common kernel
-        default: "5.10"
-        type: choice
-        options:
-          - "5.10"
-          - "6.1"
-          - "6.6"
-
       LTO:
         description: |
           Link-Time Optimisation mode:
@@ -68,7 +33,6 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # thin LTO builds finish in ~45–60 min; full LTO needs up to ~90 min for the link step
     timeout-minutes: 90
 
     steps:
@@ -77,51 +41,23 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Determine Build Status
-        run: |
-          if [ "${{ toJson(github.event.inputs) }}" == "null" ]; then
-            echo "STATUS=RELEASE" >> $GITHUB_ENV
-            echo "TRIGGER=workflow_call" >> $GITHUB_ENV
-          else
-            echo "STATUS=BETA" >> $GITHUB_ENV
-            echo "TRIGGER=workflow_dispatch" >> $GITHUB_ENV
-          fi
-
       - name: Validate Inputs and Secrets
         env:
-          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }} # telegram chat id
-          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }} # telegram bot token
-          GH_TOKEN: ${{ secrets.GH_TOKEN }} # github token
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
           LTO: ${{ inputs.LTO }}
         run: |
           _error() {
               echo "❌ ERROR: $*"
               let ret++
           }
-
           ret=0
-          # Check Secrets
-          if [[ -z "$TG_CHAT_ID" ]]; then
-            _error "Missing TG_CHAT_ID secret (Telegram Chat ID)"
-          fi
-          if [[ -z "$TG_BOT_TOKEN" ]]; then
-            _error "Missing TG_BOT_TOKEN secret (Telegram Bot Token)"
-          fi
-          if [[ -z "$GH_TOKEN" ]]; then
-            _error "Missing GH_TOKEN secret (GitHub PAT)"
-          fi
-
-          # LTO Validation
-          if [[ "$LTO" != "thin" && "$LTO" != "full" ]]; then
-            _error "Invalid LTO value: '$LTO'. Valid options: thin | full"
-          fi
-          if [[ "$LTO" == "full" ]]; then
-            echo "⚠️  Full LTO selected — serial link, ~14–18 GB RAM, ~15–30 min. Runner needs 14 GB swap."
-          fi
-
-          if [[ $ret -gt 0 ]]; then
-            exit $ret
-          fi
+          if [[ -z "$TG_CHAT_ID" ]]; then _error "Missing TG_CHAT_ID"; fi
+          if [[ -z "$TG_BOT_TOKEN" ]]; then _error "Missing TG_BOT_TOKEN"; fi
+          if [[ -z "$GH_TOKEN" ]]; then _error "Missing GH_TOKEN"; fi
+          if [[ "$LTO" != "thin" && "$LTO" != "full" ]]; then _error "Invalid LTO value"; fi
+          if [[ $ret -gt 0 ]]; then exit $ret; fi
 
       - name: Install Dependencies
         run: |
@@ -133,83 +69,47 @@ jobs:
         env:
           LTO: ${{ inputs.LTO }}
         run: |
-          # Free up disk space (recovers ~20 GB regardless of LTO mode)
-          sudo rm -rf /usr/local/lib/android \
-                      /usr/local/share/boost \
-                      /opt/ghc \
-                      /opt/hostedtoolcache/CodeQL \
-                      /usr/share/dotnet \
-                      /usr/share/swift \
-                      /usr/lib/jvm \
-                      /usr/local/.ghcup \
-                      /usr/local/share/powershell \
-                      /usr/share/doc \
-                      /usr/share/man || true
-
-          # Swap size depends on LTO mode:
-          #   full → 14 GB  (serial whole-program link needs ~14–18 GB RAM;
-          #                  16 GB RAM + 14 GB swap = 30 GB virtual = safe)
-          #   thin → 6 GB   (parallel link peaks at ~3–4 GB; 6 GB is generous headroom)
+          sudo rm -rf /usr/local/lib/android /usr/local/share/boost /opt/ghc /opt/hostedtoolcache/CodeQL /usr/share/dotnet /usr/share/swift /usr/lib/jvm /usr/local/.ghcup /usr/local/share/powershell /usr/share/doc /usr/share/man || true
           sudo swapoff -a || true
-          if [[ "$LTO" == "full" ]]; then
-            SWAP_MB=14336
-            echo "Full LTO selected — allocating 14 GB swap for whole-program link step."
-          else
-            SWAP_MB=6144
-            echo "Thin LTO selected — allocating 6 GB swap (parallel link, low RAM usage)."
-          fi
-
+          if [[ "$LTO" == "full" ]]; then SWAP_MB=14336; else SWAP_MB=6144; fi
           sudo dd if=/dev/zero of=/mnt/swapfile bs=1M count=$SWAP_MB status=progress
           sudo chmod 600 /mnt/swapfile
           sudo mkswap /mnt/swapfile
           sudo swapon /mnt/swapfile
-
-          # swappiness=80 for full LTO so kernel uses swap before OOM-killing the linker;
-          # default (60) is fine for thin LTO.
-          if [[ "$LTO" == "full" ]]; then
-            sudo sysctl -w vm.swappiness=80
-          fi
-
-          echo "Swap enabled:"
-          free -h
+          if [[ "$LTO" == "full" ]]; then sudo sysctl -w vm.swappiness=80; fi
 
       - name: Run Build Script
         env:
-          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }} # telegram chat id
-          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }} # telegram bot token
-          GH_TOKEN: ${{ secrets.GH_TOKEN }} # github token
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
           KSU: "no"
           KSU_SUSFS: "false"
           KSU_MANUAL_HOOK: "false"
-          LAST_BUILD: ${{ inputs.LAST_BUILD }}
-          TODO: ${{ inputs.TODO }}
-          KVER: ${{ inputs.KERNEL_VERSION }}
+          LAST_BUILD: "true"
+          TODO: "kernel"
+          KVER: "6.1"
           LTO: ${{ inputs.LTO }}
         run: |
           export GIT_CLONE_PROTECTION_ACTIVE=false
           chmod +x *.sh py/*.py
           ./build.sh
 
-      - name: Upload Artifacts (ZIP & IMG)
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.BASE_NAME }}-${{ github.run_number }}
+          name: stock-kernel-${{ github.run_number }}
           path: |
             artifacts/*.zip
             artifacts/*.img
-
-      - name: Upload Artifacts (Info File)
-        uses: actions/upload-artifact@v4
-        with:
-          name: info-${{ github.run_number }}
-          path: artifacts/*.txt
+            artifacts/*.txt
 
       - name: Create GitHub Release
         if: success()
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ github.run_number }}
-          name: Build ${{ github.run_number }} - ${{ env.BASE_NAME }}
+          tag_name: stock-${{ github.run_number }}
+          name: Stock Build ${{ github.run_number }}
           body_path: artifacts/release_notes.txt
           files: |
             artifacts/*.zip
