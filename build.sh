@@ -88,28 +88,10 @@ LINUX_VERSION=$(make kernelversion)
 LINUX_VERSION_CODE=${LINUX_VERSION//./}
 DEFCONFIG_FILE=$(find ./arch/arm64/configs -name "$KERNEL_DEFCONFIG")
 
-# --- PATCH 500HZ (INSTALLED AT THE BEGINNING) ---
-log "Applying 500Hz patch..."
-bash $WORKDIR/inject_ksu/Inject_500hz.sh
-#--------------------------------------
-
-# --- ADD KSU INJECT SCRIPT ---
-log "Injecting custom KSU & SuSFS configs..."
-export KSU
-export KSU_SUSFS
-bash $WORKDIR/inject_ksu/gki_defconfig.sh
-# --------------------------------------
 cd $WORKDIR
 
 # Set Kernel variant
-log "Setting Kernel variant..."
-case "$KSU" in
-  "kernelsu") VARIANT="KSU" ;;
-  "next")     VARIANT="KSU-Next" ;;
-  "no")       VARIANT="Vanilla" ;;
-esac
-# Append +SuSFS suffix — shows in KernelSU app kernel version string
-susfs_included && VARIANT+="+SuSFS"
+VARIANT="Stock"
 
 # Replace Placeholder in zip name
 AK3_ZIP_NAME=${AK3_ZIP_NAME//KVER/$LINUX_VERSION}
@@ -160,219 +142,6 @@ export PATH="${CLANG_BIN}:${GAS_DIR}:$PATH"
 COMPILER_STRING=$(clang -v 2>&1 | head -n 1 | sed 's/(https..*//' | sed 's/ version//')
 
 cd $KSRC
-
-## KernelSU setup
-if ksu_included; then
-
-  # ── Pre-baked detection ────────────────────────────────────────────────────
-  # If the kernel source already ships the KernelSU driver (committed directly
-  # to the repo), skip the network fetch entirely.  A pre-baked driver must
-  # expose its version via drivers/kernelsu/Makefile (KernelSU-Next) or
-  # drivers/kernelsu/ksu.h (tiann).  We treat presence of the directory AND a
-  # Makefile referencing CONFIG_KSU as the signal.
-  KSU_PREBAKED=false
-  if [ -d "drivers/kernelsu" ] && grep -q "CONFIG_KSU" "drivers/kernelsu/Makefile" 2>/dev/null; then
-    log "✅ Pre-baked KernelSU driver detected in source — skipping network setup."
-    KSU_PREBAKED=true
-  fi
-
-  if [ "$KSU_PREBAKED" = false ]; then
-    # Remove any stale KernelSU driver trees to avoid conflicts
-    for KSU_PATH in drivers/staging/kernelsu drivers/kernelsu KernelSU KernelSU-Next; do
-      if [ -d "$KSU_PATH" ]; then
-        log "Stale KernelSU driver found in $KSU_PATH — removing..."
-        KSU_DIR=$(dirname "$KSU_PATH")
-        [ -f "$KSU_DIR/Kconfig" ]  && sed -i '/kernelsu/Id' "$KSU_DIR/Kconfig"
-        [ -f "$KSU_DIR/Makefile" ] && sed -i '/kernelsu/Id' "$KSU_DIR/Makefile"
-        rm -rf "$KSU_PATH"
-      fi
-    done
-
-    # ── Official KernelSU (tiann/KernelSU) ────────────────────────────────
-    if [ "$KSU" == "kernelsu" ]; then
-      log "Setting up Official KernelSU (tiann/KernelSU, latest main)..."
-      [ "$KSU_MANUAL_HOOK" == "true" ] && \
-        log "⚠️  KSU_MANUAL_HOOK=true is ignored — tiann/KernelSU is kprobes-only"
-      [ "$KSU_SUSFS" == "true" ] && \
-        log "⚠️  KSU_SUSFS=true is ignored for KSU=kernelsu — use KSU=next for SuSFS support"
-      curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
-      log "Official KernelSU setup done."
-
-    # ── KernelSU-Next (pershoot dev-susfs OR KernelSU-Next/stable) ─────────
-    elif [ "$KSU" == "next" ]; then
-      if susfs_included; then
-        log "Setting up KernelSU-Next+SuSFS (pershoot dev-susfs)..."
-        curl -LSs "https://raw.githubusercontent.com/pershoot/KernelSU-Next/refs/heads/dev-susfs/kernel/setup.sh" | bash -s dev-susfs
-      else
-        log "Setting up KernelSU-Next (KernelSU-Next/KernelSU-Next, stable — no SuSFS)..."
-        curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s stable
-      fi
-      log "KernelSU-Next setup done."
-    fi
-  fi
-
-  # Enable KSU configs regardless of source (pre-baked or freshly fetched)
-  config --enable CONFIG_KSU
-  config --enable CONFIG_KPROBES
-  config --enable CONFIG_KPROBE_EVENTS
-fi
-
-# ── SuSFS kernel-side patches (simonpunk/susfs4ksu) ──────────────────────────
-# KernelSU-Next stable + simonpunk v2.1.0 — proven combination.
-# tiann (kernelsu): no SuSFS support.
-if susfs_included && [ "$KSU" == "next" ]; then
-  log "Applying SuSFS kernel-side patches (simonpunk/susfs4ksu, latest branch)..."
-  SUSFS_DIR="$WORKDIR/susfs"
-  SUSFS_PATCHES="${SUSFS_DIR}/kernel_patches"
-  if [ "$KVER" == "6.6" ]; then
-    SUSFS_BRANCH="gki-android15-6.6"
-  elif [ "$KVER" == "6.1" ]; then
-    SUSFS_BRANCH="gki-android14-6.1"
-  elif [ "$KVER" == "5.10" ]; then
-    SUSFS_BRANCH="gki-android12-5.10-dev"
-  fi
-
-  git clone --depth=1 -q https://gitlab.com/simonpunk/susfs4ksu -b "$SUSFS_BRANCH" "$SUSFS_DIR"
-
-  # Copy fs/susfs.c + include/ headers, then apply 50_add_susfs kernel hooks.
-  cp -R "$SUSFS_PATCHES/fs/"*      ./fs/
-  cp -R "$SUSFS_PATCHES/include/"* ./include/
-  # Patch filename uses base branch name without -dev suffix
-  SUSFS_PATCH_BRANCH="${SUSFS_BRANCH%-dev}"
-  patch -p1 < "$SUSFS_PATCHES/50_add_susfs_in_${SUSFS_PATCH_BRANCH}.patch" || true
-
-  # Per-version kernel compatibility fixups
-  LVER_4=$(echo "$LINUX_VERSION_CODE" | head -c4)
-  LVER_3=$(echo "$LINUX_VERSION_CODE" | head -c3)
-  LVER_2=$(echo "$LINUX_VERSION_CODE" | head -c2)
-  LVER_1=$(echo "$LINUX_VERSION_CODE" | head -c1)
-
-  if [ "$KVER" == "6.6" ]; then
-    if [ "$LVER_4" -eq 6630 ] 2>/dev/null; then
-      patch -p1 < $KERNEL_PATCHES/susfs/namespace.c_fix.patch
-      patch -p1 < $KERNEL_PATCHES/susfs/task_mmu.c_fix.patch
-    elif [ "$LVER_4" -eq 6658 ] 2>/dev/null; then
-      patch -p1 < $KERNEL_PATCHES/susfs/task_mmu.c_fix-k6.6.58.patch
-    fi
-  elif [ "$LVER_2" -eq 61 ] 2>/dev/null; then
-    patch -p1 < $KERNEL_PATCHES/susfs/fs_proc_base.c-fix-k6.1.patch
-  elif [ "$LVER_3" -eq 510 ] 2>/dev/null; then
-    # pershoot dev-susfs needs susfs_uname_is_active() + susfs_set_uname_from_kernel()
-    # exported from fs/susfs.c. simonpunk has NOT merged these yet (even dev branch).
-    # Inject them directly before susfs_set_uname() which is always present.
-    if grep -q "susfs_uname_is_active" fs/susfs.c 2>/dev/null; then
-      log "[✓] susfs uname helpers already in susfs.c — skipping inject."
-    else
-      log "Injecting susfs_uname_is_active + susfs_set_uname_from_kernel into fs/susfs.c..."
-      sed -i 's/^void susfs_set_uname(void __user \*\*user_info)/static bool susfs_uname_owner;\n\nbool susfs_uname_is_active(void) { return susfs_uname_owner; }\nEXPORT_SYMBOL_GPL(susfs_uname_is_active);\n\nint susfs_set_uname_from_kernel(const char *release, const char *version) {\n\tif (release \&\& release[0]) strncpy(my_uname.release, release, __NEW_UTS_LEN);\n\telse strncpy(my_uname.release, utsname()->release, __NEW_UTS_LEN);\n\tif (version \&\& version[0]) strncpy(my_uname.version, version, __NEW_UTS_LEN);\n\telse strncpy(my_uname.version, utsname()->version, __NEW_UTS_LEN);\n\treturn 0;\n}\nEXPORT_SYMBOL_GPL(susfs_set_uname_from_kernel);\n\nvoid susfs_set_uname(void __user **user_info)/' fs/susfs.c
-      log "[✓] susfs uname helpers injected into fs/susfs.c"
-    fi
-  fi
-
-  # statfs CRC symbol mismatch fix for GKI 6.x kernels
-  if [ "$LVER_1" -eq 6 ] 2>/dev/null; then
-    if [ "$KVER" == "6.1" ]; then
-      log "Applying manual statfs CRC fix for GKI 6.1..."
-      sed -i '/#include <linux\/susfs_def.h>/i #ifndef __GENKSYMS__' fs/statfs.c
-      sed -i '/#include "mount.h"/a #endif' fs/statfs.c
-    else
-      log "Applying statfs CRC fix patch for GKI 6.x..."
-      patch -p1 < $KERNEL_PATCHES/susfs/fix-statfs-crc-mismatch-susfs.patch
-    fi
-  fi
-
-  SUSFS_VERSION=$(grep -E '^#define SUSFS_VERSION' ./include/linux/susfs.h | cut -d' ' -f3 | sed 's/"//g')
-  # Configs match pershoot dev-susfs Kconfig exactly
-  config --enable CONFIG_KSU_SUSFS
-  config --enable CONFIG_KSU_SUSFS_SUS_PATH
-  config --enable CONFIG_KSU_SUSFS_SUS_MOUNT
-  config --enable CONFIG_KSU_SUSFS_SUS_KSTAT
-  config --enable CONFIG_KSU_SUSFS_SPOOF_UNAME
-  config --enable CONFIG_KSU_SUSFS_ENABLE_LOG
-  config --enable CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
-  config --enable CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
-  config --enable CONFIG_KSU_SUSFS_OPEN_REDIRECT
-  config --enable CONFIG_KSU_SUSFS_SUS_MAP
-  # ── Deprecated in susfs v2.x — explicitly removed from Kconfig ───────────
-  # These existed in susfs v1.x and must be explicitly disabled so they never
-  # appear as undefined or accidentally enabled in the final .config.
-  config --disable CONFIG_KSU_SUSFS_TRY_UMOUNT
-  config --disable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT
-  config --disable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT
-  config --disable CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT
-  config --disable CONFIG_KSU_SUSFS_MAGIC_MOUNT
-  config --disable CONFIG_KSU_SUSFS_OVERLAYFS_AUTO_KSTAT
-  log "[✓] SuSFS $SUSFS_VERSION patched and configured."
-else
-  config --disable CONFIG_KSU_SUSFS
-fi
-
-# ── Manual Hooks (applied AFTER SuSFS so patches don't conflict) ─────────────
-# SuSFS and manual hooks both touch fs/read_write.c, fs/stat.c, kernel/reboot.c etc.
-# Correct order: KernelSU install → SuSFS patches → Manual hooks
-if ksu_included && [ "$KSU_MANUAL_HOOK" == "true" ] && [ "$KSU" != "kernelsu" ]; then
-  log "Applying manual hook patches (post-SuSFS, KSU=$KSU)..."
-  # SuSFS and manual hooks both touch fs/read_write.c, kernel/reboot.c etc.
-  # kernel/reboot.c is handled exclusively by reboot-hook.patch below —
-  # exclude it from manual-hook-v1.6 to prevent double-patching which causes
-  # ksu_handle_sys_reboot() to land inside SYSCALL_DEFINE4 macro args → compile error.
-  filterdiff -x '*/kernel/reboot.c' $KERNEL_PATCHES/hooks/manual-hook-v1.6.patch \
-    | patch -p1 --fuzz=5 --ignore-whitespace || true
-  # reboot-hook.patch is intentionally NOT applied via patch(1) — after SuSFS
-  # shifts lines in kernel/reboot.c, --fuzz=5 causes the hunk to land inside
-  # SYSCALL_DEFINE4 macro args instead of the function body → compile error.
-  # Instead, inject directly using a context-aware Python script.
-  python3 - "$KSRC/kernel/reboot.c" <<'PYEOF'
-import sys, re
-
-path = sys.argv[1]
-with open(path, 'r') as f:
-    lines = f.readlines()
-
-EXTERN = '#ifdef CONFIG_KSU\nextern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg);\n#endif\n'
-HOOK   = '\t#ifdef CONFIG_KSU\n\t\tksu_handle_sys_reboot(magic1, magic2, cmd, &arg);\n\t#endif\n'
-
-# Idempotency check
-content = ''.join(lines)
-if 'ksu_handle_sys_reboot' in content:
-    print('[reboot-hook] Already injected, skipping.')
-    sys.exit(0)
-
-out = []
-in_reboot_syscall = False
-extern_injected   = False
-hook_injected     = False
-
-for i, line in enumerate(lines):
-    out.append(line)
-
-    # 1) Inject extern declaration right after DEFINE_MUTEX(system_transition_mutex);
-    if not extern_injected and 'DEFINE_MUTEX(system_transition_mutex)' in line:
-        out.append(EXTERN)
-        extern_injected = True
-        continue
-
-    # 2) Detect entry into SYSCALL_DEFINE4(reboot, ...)
-    if 'SYSCALL_DEFINE4(reboot' in line:
-        in_reboot_syscall = True
-
-    # 3) Inside the reboot syscall, inject after "int ret = 0;"
-    if in_reboot_syscall and not hook_injected and re.match(r'\s*int ret\s*=\s*0\s*;', line):
-        out.append(HOOK)
-        hook_injected = True
-        in_reboot_syscall = False  # done
-
-with open(path, 'w') as f:
-    f.writelines(out)
-
-print(f'[reboot-hook] extern_injected={extern_injected}, hook_injected={hook_injected}')
-if not extern_injected or not hook_injected:
-    print('[reboot-hook] WARNING: one or more injection points not found!', file=sys.stderr)
-    sys.exit(1)
-PYEOF
-  config --enable CONFIG_KSU_MANUAL_HOOK
-  log "[✓] Manual hooks applied."
-fi
 
 # Declare needed variables
 export KBUILD_BUILD_USER="$USER"
@@ -436,34 +205,6 @@ if [ $TODO == "kernel" ]; then
   log "Kernel localversion set to: -$KERNEL_NAME-sky/$SUFFIX"
 fi
 
-# ── Re-apply SuSFS configs AFTER final olddefconfig ──────────────────────────
-# olddefconfig runs twice (after merge_config + after localversion) and can
-# strip CONFIG_KSU_SUSFS_* if Kconfig dependency resolution fails at that point.
-# Re-enabling here — after the very last olddefconfig — guarantees they survive
-# into the final .config that the compiler sees. No more olddefconfig after this.
-if susfs_included && [ "$KSU" == "next" ]; then
-  log "Re-pinning SuSFS configs post-olddefconfig..."
-  # Re-pin: match pershoot dev-susfs Kconfig exactly
-  $KSRC/scripts/config --file $OUTDIR/.config --enable CONFIG_KSU_SUSFS
-  $KSRC/scripts/config --file $OUTDIR/.config --enable CONFIG_KSU_SUSFS_SUS_PATH
-  $KSRC/scripts/config --file $OUTDIR/.config --enable CONFIG_KSU_SUSFS_SUS_MOUNT
-  $KSRC/scripts/config --file $OUTDIR/.config --enable CONFIG_KSU_SUSFS_SUS_KSTAT
-  $KSRC/scripts/config --file $OUTDIR/.config --enable CONFIG_KSU_SUSFS_SPOOF_UNAME
-  $KSRC/scripts/config --file $OUTDIR/.config --enable CONFIG_KSU_SUSFS_ENABLE_LOG
-  $KSRC/scripts/config --file $OUTDIR/.config --enable CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
-  $KSRC/scripts/config --file $OUTDIR/.config --enable CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
-  $KSRC/scripts/config --file $OUTDIR/.config --enable CONFIG_KSU_SUSFS_OPEN_REDIRECT
-  $KSRC/scripts/config --file $OUTDIR/.config --enable CONFIG_KSU_SUSFS_SUS_MAP
-  # ── Deprecated in susfs v2.x — pin as disabled post-olddefconfig too ─────
-  $KSRC/scripts/config --file $OUTDIR/.config --disable CONFIG_KSU_SUSFS_TRY_UMOUNT
-  $KSRC/scripts/config --file $OUTDIR/.config --disable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT
-  $KSRC/scripts/config --file $OUTDIR/.config --disable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT
-  $KSRC/scripts/config --file $OUTDIR/.config --disable CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT
-  $KSRC/scripts/config --file $OUTDIR/.config --disable CONFIG_KSU_SUSFS_MAGIC_MOUNT
-  $KSRC/scripts/config --file $OUTDIR/.config --disable CONFIG_KSU_SUSFS_OVERLAYFS_AUTO_KSTAT
-  log "[✓] SuSFS configs locked in .config — will compile into kernel"
-fi
-
 # ── Apply LTO mode based on $LTO env variable ────────────────────────────────
 # Passed in from the workflow input (thin | full). Defaults to thin if unset.
 #
@@ -506,33 +247,25 @@ text=$(
 $KERNEL_NAME — Redmi 12 5G / Poco M6 Pro 5G (sky)
 
 Technical Overview:
-OSS-based kernel for the sky platform (Redmi 12 5G / Poco M6 Pro 5G), engineered for stealth, system integrity, and hardware responsiveness.
+Stock OSS-based kernel for the sky platform (Redmi 12 5G / Poco M6 Pro 5G).
 
 Core Specifications:
 - Kernel Version: $LINUX_VERSION
-- Root Solution: $VARIANT
-- SuSFS Version: ${SUSFS_VERSION:-None}
 - LTO Mode: $LTO_MODE
 - Compiler: $COMPILER_STRING
 - Build Date: $KBUILD_BUILD_TIMESTAMP
 
-Features & Security:
-- Root Implementation: KernelSU-Next + SuSFS + Manual Hooks integration by @suvojeet__sengupta.
-- Latency: Native 500Hz task frequency for improved UI fluidity.
-- SuSFS: SUS_PATH, SUS_MOUNT, SUS_KSTAT, SPOOF_UNAME, SPOOF_CMDLINE, OPEN_REDIRECT enabled.
-- Stability: Context-aware Python-injected reboot hooks for SuSFS/KSU integrity.
+Features:
 - Hardware: Full vendor config merge for hardware_info.ko (FT8720/NT36672C support).
 
 Usage Warnings:
 - Device Specific: This is an OSS-based kernel for sky only.
 - Not Universal GKI: Do not flash on other devices or over prebuilt kernels.
-- Integrity: Mandatory KMI symbol verification and CFI enforced across all variants.
+- Integrity: Mandatory KMI symbol verification and CFI enforced.
 
 Credits: 
 - @lostark13: OSS Kernel source.
 - @AltafYafai: Upstreaming to latest.
-- @suvojeet_sengupta: Integration of KSU-Next, SuSFS, and all root-related logic.
-- tiann, simonpunk, pershoot, linastorvaldz, and the KernelSU community.
 
 Source: https://github.com/altafyafai7/android_kernel_xiaomi_sky_upstream.git
 EOF
@@ -573,13 +306,13 @@ if [ $STATUS == "BETA" ]; then
   AK3_ZIP_NAME=${AK3_ZIP_NAME//BUILD_DATE/$BUILD_DATE}
   AK3_ZIP_NAME=${AK3_ZIP_NAME//-REL/}
   sed -i \
-    "s/kernel.string=.*/kernel.string=${KERNEL_NAME} | ${VARIANT} | ${LINUX_VERSION} | No Traces/g" \
+    "s/kernel.string=.*/kernel.string=${KERNEL_NAME} | ${LINUX_VERSION} | Stock/g" \
     $WORKDIR/anykernel/anykernel.sh
 else
   AK3_ZIP_NAME=${AK3_ZIP_NAME//-BUILD_DATE/}
   AK3_ZIP_NAME=${AK3_ZIP_NAME//REL/$RELEASE}
   sed -i \
-    "s/kernel.string=.*/kernel.string=${KERNEL_NAME} ${RELEASE} | ${VARIANT} | ${LINUX_VERSION} | No Traces/g" \
+    "s/kernel.string=.*/kernel.string=${KERNEL_NAME} ${RELEASE} | ${LINUX_VERSION} | Stock/g" \
     $WORKDIR/anykernel/anykernel.sh
 fi
 
@@ -599,7 +332,6 @@ fi
 if [ "${LAST_BUILD}" == "true" ] || [ "${STATUS}" != "BETA" ]; then
   (
     echo "LINUX_VERSION=$LINUX_VERSION"
-    echo "SUSFS_VERSION=$(curl -s https://gitlab.com/simonpunk/susfs4ksu/raw/gki-android15-6.6/kernel_patches/include/linux/susfs.h | grep -E '^#define SUSFS_VERSION' | cut -d' ' -f3 | sed 's/"//g')"
     echo "KERNEL_NAME=$KERNEL_NAME"
     echo "RELEASE_REPO=$(simplify_gh_url "$GKI_RELEASES_REPO")"
   ) >> $WORKDIR/artifacts/info.txt
