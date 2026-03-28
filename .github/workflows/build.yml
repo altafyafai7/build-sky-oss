@@ -5,12 +5,6 @@ on:
     inputs:
       TODO:
         type: string
-      KSU:
-        type: string
-      KSU_SUSFS:
-        type: string
-      KSU_MANUAL_HOOK:
-        type: string
       LAST_BUILD:
         type: string
       KERNEL_VERSION:
@@ -30,43 +24,6 @@ on:
         options:
           - "kernel"
           - "defconfig"
-
-      KSU:
-        description: |
-          Root type:
-            no        → Vanilla kernel, no root (VNL)
-            kernelsu  → Official KernelSU (tiann) — latest main, kprobes, no SuSFS
-            next      → KernelSU-Next — kprobes + manual hooks, SuSFS v2.1.0 ✅
-        default: "next"
-        type: choice
-        options:
-          - "no"
-          - "kernelsu"
-          - "next"
-
-      KSU_SUSFS:
-        description: |
-          Include SuSFS (kernel-side root hiding)?
-            true  → simonpunk/susfs4ksu v2.1.0 — only works with KSU=next ✅
-            false → No SuSFS
-          Note: Ignored when KSU=no or KSU=kernelsu
-        default: "true"
-        type: choice
-        options:
-          - "true"
-          - "false"
-
-      KSU_MANUAL_HOOK:
-        description: |
-          Use Manual Hooks instead of kprobes? (KSU=next only)
-            true  → Manual hooks (better detach/hide)
-            false → kprobes (default)
-          Note: Ignored for KSU=kernelsu (kprobes-only)
-        default: "false"
-        type: choice
-        options:
-          - "true"
-          - "false"
 
       KERNEL_VERSION:
         description: |
@@ -135,9 +92,6 @@ jobs:
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }} # telegram chat id
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }} # telegram bot token
           GH_TOKEN: ${{ secrets.GH_TOKEN }} # github token
-          KSU: ${{ inputs.KSU }}
-          KSU_SUSFS: ${{ inputs.KSU_SUSFS }}
-          KSU_MANUAL_HOOK: ${{ inputs.KSU_MANUAL_HOOK }}
           LTO: ${{ inputs.LTO }}
         run: |
           _error() {
@@ -155,25 +109,6 @@ jobs:
           fi
           if [[ -z "$GH_TOKEN" ]]; then
             _error "Missing GH_TOKEN secret (GitHub PAT)"
-          fi
-
-          # KernelSU Validation
-          if [[ "$KSU" != "no" && "$KSU" != "kernelsu" && "$KSU" != "next" ]]; then
-            _error "Invalid KSU value: '$KSU'. Valid options: no | kernelsu | next"
-          fi
-          # Cannot use SuSFS or Manual Hook without KernelSU
-          if [[ $KSU == "no" && $KSU_SUSFS == "true" ]]; then
-              _error "Cannot enable KSU_SUSFS=true when KSU=no"
-          fi
-          if [[ $KSU == "no" && $KSU_MANUAL_HOOK == "true" ]]; then
-            _error "Cannot use KSU_MANUAL_HOOK=true when KSU=no"
-          fi
-          # tiann is kprobes-only, no SuSFS support — warn and continue
-          if [[ $KSU == "kernelsu" && $KSU_MANUAL_HOOK == "true" ]]; then
-              echo "⚠️  KSU_MANUAL_HOOK=true ignored for KSU=kernelsu (kprobes-only)"
-          fi
-          if [[ $KSU == "kernelsu" && $KSU_SUSFS == "true" ]]; then
-              echo "⚠️  KSU_SUSFS=true ignored for KSU=kernelsu — tiann does not support SuSFS. Use KSU=next."
           fi
 
           # LTO Validation
@@ -243,9 +178,9 @@ jobs:
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }} # telegram chat id
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }} # telegram bot token
           GH_TOKEN: ${{ secrets.GH_TOKEN }} # github token
-          KSU: ${{ inputs.KSU }}
-          KSU_SUSFS: ${{ inputs.KSU_SUSFS }}
-          KSU_MANUAL_HOOK: ${{ inputs.KSU_MANUAL_HOOK }}
+          KSU: "no"
+          KSU_SUSFS: "false"
+          KSU_MANUAL_HOOK: "false"
           LAST_BUILD: ${{ inputs.LAST_BUILD }}
           TODO: ${{ inputs.TODO }}
           KVER: ${{ inputs.KERNEL_VERSION }}
