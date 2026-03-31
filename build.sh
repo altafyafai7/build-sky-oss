@@ -297,9 +297,27 @@ cd $WORKDIR
 ## Post-compiling stuff
 cd $WORKDIR
 
+# Collect modules
+log "Collecting modules..."
+mkdir -p $WORKDIR/modules
+find $OUTDIR -name "*.ko" -exec cp {} $WORKDIR/modules/ \;
+
+# Zip modules separately
+cd $WORKDIR/modules
+MODULES_ZIP="modules-${LINUX_VERSION}.zip"
+zip -r9 $WORKDIR/$MODULES_ZIP ./*
+cd $WORKDIR
+
+# Upload modules separately
+upload_file "$WORKDIR/$MODULES_ZIP" "📦 *Kernel Modules (.ko)*"
+
 # Clone AnyKernel
 log "Cloning anykernel from $(simplify_gh_url "$ANYKERNEL_REPO")"
 git clone -q --depth=1 $ANYKERNEL_REPO -b $ANYKERNEL_BRANCH anykernel
+
+# Copy modules to AnyKernel (Standard path for GKI modules in AK3)
+mkdir -p $WORKDIR/anykernel/modules/vendor/lib/modules
+cp $WORKDIR/modules/*.ko $WORKDIR/anykernel/modules/vendor/lib/modules/
 
 # Set kernel string in anykernel
 if [ $STATUS == "BETA" ]; then
