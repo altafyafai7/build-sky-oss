@@ -70,14 +70,6 @@ trap 'error "Failed at line $LINENO [$BASH_COMMAND]"' ERR
 # Import functions
 source $WORKDIR/functions.sh
 
-send_msg "🚀 *SKY Build Triggered*
-━━━━━━━━━━━━━━━━━━━━
-📦 *Kernel:* \`$KERNEL_NAME\`
-⚙️ *Ver:* \`$KVER\`
-👤 *User:* \`$USER\`
-💻 *Host:* \`$HOST\`
-━━━━━━━━━━━━━━━━━━━━"
-
 # Set timezone
 sudo timedatectl set-timezone "$TIMEZONE" || export TZ="$TIMEZONE"
 
@@ -86,11 +78,22 @@ log "Cloning kernel source from $(simplify_gh_url "$KERNEL_REPO")"
 git clone -q --depth=1 $KERNEL_REPO -b $KERNEL_BRANCH $KSRC
 
 cd $KSRC
+COMMIT_HASH=$(git rev-parse --short HEAD)
+COMMIT_MSG=$(git log -1 --pretty=format:"%s")
 LINUX_VERSION=$(make kernelversion)
 LINUX_VERSION_CODE=${LINUX_VERSION//./}
 DEFCONFIG_FILE=$(find ./arch/arm64/configs -name "$KERNEL_DEFCONFIG")
-
 cd $WORKDIR
+
+send_msg "🚀 *SKY Build Triggered*
+━━━━━━━━━━━━━━━━━━━━
+📦 *Kernel:* \`$KERNEL_NAME\`
+⚙️ *Ver:* \`$KVER\`
+🆔 *Commit:* [\`$COMMIT_HASH\`]($KERNEL_REPO/commit/$COMMIT_HASH)
+📝 *Changes:* \`$COMMIT_MSG\`
+👤 *User:* \`$USER\`
+💻 *Host:* \`$HOST\`
+━━━━━━━━━━━━━━━━━━━━"
 
 # Set Kernel variant
 VARIANT="Stock"
@@ -142,6 +145,9 @@ export PATH="${CLANG_BIN}:${GAS_DIR}:$PATH"
 
 # Extract clang version
 COMPILER_STRING=$(clang -v 2>&1 | head -n 1 | sed 's/(https..*//' | sed 's/ version//')
+
+# ── Detect final LTO mode for build notification ──────────────────────────────
+# (LTO detection logic is inside build.sh further down, but we need variables here if we use them)
 
 cd $KSRC
 
