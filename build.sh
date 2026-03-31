@@ -243,6 +243,12 @@ else
   LTO_MODE="Disabled"
 fi
 
+# ── Get Latest Commit Info ───────────────────────────────────────────────────
+cd $KSRC
+COMMIT_HASH=$(git rev-parse --short HEAD)
+COMMIT_MSG=$(git log -1 --pretty=format:"%s")
+cd $WORKDIR
+
 # ── Telegram build notification message ───────────────────────────────────────
 text=$(
   cat << EOF
@@ -253,6 +259,8 @@ text=$(
 • ⚡ *LTO Mode:* \`$LTO_MODE\`
 • 🛡 *Compiler:* \`$COMPILER_STRING\`
 • 📅 *Build Date:* \`$KBUILD_BUILD_TIMESTAMP\`
+• 🆔 *Commit ID:* [\`$COMMIT_HASH\`]($KERNEL_REPO/commit/$COMMIT_HASH)
+• 📝 *Changes:* \`$COMMIT_MSG\`
 
 🌟 *Features:*
 • 🔌 Full vendor config merge (hardware_info.ko)
