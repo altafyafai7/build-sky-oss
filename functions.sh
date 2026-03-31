@@ -34,6 +34,19 @@ send_msg() {
     -d "text=$MESSAGE"
 }
 
+# Live Logging for Compilation
+live_log() {
+  while read -r line; do
+    echo "$line" # Still print to terminal/file
+    # Only send lines that start with CC, LD, or AR (compilation steps)
+    if [[ "$line" =~ ^[\ ]*(CC|LD|AR|AS)[\ ]+ ]]; then
+       # Clean the line and send it
+       CLEAN_LINE=$(echo "$line" | sed 's/[[:space:]]\+/ /g')
+       send_msg "🔨 *Compiling:* \`$CLEAN_LINE\`"
+    fi
+  done
+}
+
 # KernelSU-related functions
 install_ksu() {
   local REPO="$1"

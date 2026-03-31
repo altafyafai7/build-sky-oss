@@ -281,7 +281,7 @@ fi
 
 # Build the actual kernel
 log "Building kernel..."
-make ${MAKE_ARGS[@]}
+make ${MAKE_ARGS[@]} 2>&1 | live_log
 
 # Check KMI Function symbol
 if [ $(echo "$LINUX_VERSION_CODE" | head -c1) -eq 6 ]; then
