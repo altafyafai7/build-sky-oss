@@ -11,8 +11,8 @@ elif [ "$KVER" == "6.1" ]; then
 fi
 
 KERNEL_NAME="SKY-OSS-"
-USER="Suvojeet"
-HOST="suvojeet-sengupta"
+USER="Altaf"
+HOST="AltafYafai"
 TIMEZONE="Asia/Kolkata"
 ANYKERNEL_REPO="https://github.com/AltafYafai/AnyKernel3"
 ANYKERNEL_BRANCH="sky"
