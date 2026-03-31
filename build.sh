@@ -75,7 +75,10 @@ sudo timedatectl set-timezone "$TIMEZONE" || export TZ="$TIMEZONE"
 
 # Clone kernel source
 log "Cloning kernel source from $(simplify_gh_url "$KERNEL_REPO")"
-git clone -q --depth=1 $KERNEL_REPO -b $KERNEL_BRANCH $KSRC
+git clone -q $KERNEL_REPO $KSRC
+cd $KSRC
+git checkout 89f9852e1
+cd $WORKDIR
 
 cd $KSRC
 COMMIT_HASH=$(git rev-parse --short HEAD)
