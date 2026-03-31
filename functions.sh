@@ -34,17 +34,46 @@ send_msg() {
     -d "text=$MESSAGE"
 }
 
-# Live Logging for Compilation
+# Live Logging for Compilation (Edit Message)
 live_log() {
+  local MSG_ID=""
+  local LINE_COUNT=0
+  local UPDATE_LIMIT=15 # Update every 15 compilation steps to avoid rate limits
+  local RESP
+  local CLEAN_LINE
+
+  # Initial Progress Message
+  RESP=$(curl -s -X POST "https://api.telegram.org/bot$TG_BOT_TOKEN/sendMessage" \
+    -d "chat_id=$TG_CHAT_ID" \
+    -d "parse_mode=markdown" \
+    -d "text=🔨 *Compilation Progress:* Starting...")
+  
+  # Extract message_id from JSON response
+  MSG_ID=$(echo "$RESP" | grep -o '"message_id":[0-9]*' | cut -d: -f2)
+
   while read -r line; do
-    echo "$line" # Still print to terminal/file
-    # Only send lines that start with CC, LD, or AR (compilation steps)
+    echo "$line" # Print to build.log
+    # Filter for compilation steps
     if [[ "$line" =~ ^[\ ]*(CC|LD|AR|AS)[\ ]+ ]]; then
-       # Clean the line and send it
-       CLEAN_LINE=$(echo "$line" | sed 's/[[:space:]]\+/ /g')
-       send_msg "🔨 *Compiling:* \`$CLEAN_LINE\`"
+       ((LINE_COUNT++))
+       # Update the existing message every N steps
+       if (( LINE_COUNT % UPDATE_LIMIT == 0 )); then
+          CLEAN_LINE=$(echo "$line" | sed 's/[[:space:]]\+/ /g' | sed 's/\*/\\*/g') # Escape markdown
+          curl -s -X POST "https://api.telegram.org/bot$TG_BOT_TOKEN/editMessageText" \
+            -d "chat_id=$TG_CHAT_ID" \
+            -d "message_id=$MSG_ID" \
+            -d "parse_mode=markdown" \
+            -d "text=🔨 *Compiling:* \`[$LINE_COUNT]\` \`$CLEAN_LINE\`" > /dev/null
+       fi
     fi
   done
+
+  # Final status update for the same message
+  curl -s -X POST "https://api.telegram.org/bot$TG_BOT_TOKEN/editMessageText" \
+    -d "chat_id=$TG_CHAT_ID" \
+    -d "message_id=$MSG_ID" \
+    -d "parse_mode=markdown" \
+    -d "text=✅ *Compilation Finished:* \`$LINE_COUNT\` steps completed." > /dev/null
 }
 
 # KernelSU-related functions
