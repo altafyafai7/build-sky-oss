@@ -337,8 +337,11 @@ git clone -q --depth=1 $ANYKERNEL_REPO -b $ANYKERNEL_BRANCH anykernel
 mkdir -p $WORKDIR/anykernel/modules/vendor/lib/modules
 cp $WORKDIR/modules/*.ko $WORKDIR/anykernel/modules/vendor/lib/modules/
 
-# Set kernel string in anykernel
-if [ $STATUS == "BETA" ]; then
+# Set kernel string and basic configuration in anykernel
+sed -i "s/IS_SLOT_DEVICE=.*/IS_SLOT_DEVICE=1;/g" $WORKDIR/anykernel/anykernel.sh
+sed -i "s/PATCH_VBMETA_FLAG=.*/PATCH_VBMETA_FLAG=1;/g" $WORKDIR/anykernel/anykernel.sh
+
+if [ "$STATUS" == "BETA" ]; then
   BUILD_DATE=$(date -d "$KBUILD_BUILD_TIMESTAMP" +"%Y%m%d-%H%M")
   AK3_ZIP_NAME=${AK3_ZIP_NAME//BUILD_DATE/$BUILD_DATE}
   AK3_ZIP_NAME=${AK3_ZIP_NAME//-REL/}
