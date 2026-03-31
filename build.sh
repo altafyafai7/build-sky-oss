@@ -186,6 +186,7 @@ else
 fi
 ## Build GKI
 log "Generating config..."
+cd $KSRC
 make ${MAKE_ARGS[@]} $KERNEL_DEFCONFIG
 
 if [ "$DEFCONFIG_TO_MERGE" ]; then
@@ -199,7 +200,8 @@ if [ "$DEFCONFIG_TO_MERGE" ]; then
 fi
 
 # set localversion — AFTER merge so sky_GKI.config -gki doesn't override it
-if [ $TODO == "kernel" ]; then
+if [ "$TODO" == "kernel" ]; then
+  cd $KSRC
   LATEST_COMMIT_HASH=$(git rev-parse --short HEAD)
   if [ $STATUS == "BETA" ]; then
     SUFFIX="$LATEST_COMMIT_HASH"
@@ -211,6 +213,7 @@ if [ $TODO == "kernel" ]; then
   sed -i 's/echo "+"/# echo "+"/g' $KSRC/scripts/setlocalversion
   make ${MAKE_ARGS[@]} olddefconfig
   log "Kernel localversion set to: -$KERNEL_NAME-sky/$SUFFIX"
+  cd $WORKDIR
 fi
 
 # ── Apply LTO mode based on $LTO env variable ────────────────────────────────
@@ -295,6 +298,7 @@ fi
 
 # Build the actual kernel
 log "Building kernel..."
+cd $KSRC
 make ${MAKE_ARGS[@]} 2>&1 | live_log
 
 # Check KMI Function symbol
