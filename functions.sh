@@ -87,19 +87,21 @@ config() {
 # Logging function
 log() {
   echo -e "[LOG] $*"
-  send_msg "🛠 [LOG]: $*"
+  send_msg "⏺️ *LOG:* $*"
 }
 
 error() {
   local err_txt
   err_txt=$(
     cat << EOF
-*Kernel CI*
-ERROR: $*
+❌ *Build Failed!*
+━━━━━━━━━━━━━━━━━━━━
+⚠️ *Error:* \`$*\`
+━━━━━━━━━━━━━━━━━━━━
 EOF
   )
   echo -e "[ERROR] $*"
   send_msg "$err_txt"
-  upload_file "$WORKDIR/build.log"
+  upload_file "$WORKDIR/build.log" "📄 *Build Log (Failure)*"
   exit 1
 }

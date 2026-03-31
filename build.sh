@@ -70,11 +70,13 @@ trap 'error "Failed at line $LINENO [$BASH_COMMAND]"' ERR
 # Import functions
 source $WORKDIR/functions.sh
 
-send_msg "🚀 *Build Started*
-Kernel: $KERNEL_NAME
-Version: $KVER
-User: $USER
-Host: $HOST"
+send_msg "🚀 *SKY Build Triggered*
+━━━━━━━━━━━━━━━━━━━━
+📦 *Kernel:* \`$KERNEL_NAME\`
+⚙️ *Ver:* \`$KVER\`
+👤 *User:* \`$USER\`
+💻 *Host:* \`$HOST\`
+━━━━━━━━━━━━━━━━━━━━"
 
 # Set timezone
 sudo timedatectl set-timezone "$TIMEZONE" || export TZ="$TIMEZONE"
@@ -244,37 +246,36 @@ fi
 # ── Telegram build notification message ───────────────────────────────────────
 text=$(
   cat << EOF
-$KERNEL_NAME — Redmi 12 5G / Poco M6 Pro 5G (sky)
+✨ *$KERNEL_NAME — Redmi 12 5G / Poco M6 Pro 5G (sky)* ✨
+━━━━━━━━━━━━━━━━━━━━
+🛠 *Technical Details:*
+• 🐧 *Kernel Version:* \`$LINUX_VERSION\`
+• ⚡ *LTO Mode:* \`$LTO_MODE\`
+• 🛡 *Compiler:* \`$COMPILER_STRING\`
+• 📅 *Build Date:* \`$KBUILD_BUILD_TIMESTAMP\`
 
-Technical Overview:
-Stock OSS-based kernel for the sky platform (Redmi 12 5G / Poco M6 Pro 5G).
+🌟 *Features:*
+• 🔌 Full vendor config merge (hardware_info.ko)
+• 👆 FT8720/NT36672C support included
 
-Core Specifications:
-- Kernel Version: $LINUX_VERSION
-- LTO Mode: $LTO_MODE
-- Compiler: $COMPILER_STRING
-- Build Date: $KBUILD_BUILD_TIMESTAMP
+⚠️ *Usage Warnings:*
+• 📍 OSS-based kernel for **sky only**.
+• 🚫 Do **not** flash on other devices!
+• ✅ KMI symbol verification & CFI enforced.
 
-Features:
-- Hardware: Full vendor config merge for hardware_info.ko (FT8720/NT36672C support).
+👥 *Credits:* 
+• @lostark13: OSS Kernel source.
+• @AltafYafai: Upstreaming to latest.
 
-Usage Warnings:
-- Device Specific: This is an OSS-based kernel for sky only.
-- Not Universal GKI: Do not flash on other devices or over prebuilt kernels.
-- Integrity: Mandatory KMI symbol verification and CFI enforced.
-
-Credits: 
-- @lostark13: OSS Kernel source.
-- @AltafYafai: Upstreaming to latest.
-
-Source: https://github.com/altafyafai7/android_kernel_xiaomi_sky_upstream.git
+🌐 *Source:* [GitHub Repository]($KERNEL_REPO)
+━━━━━━━━━━━━━━━━━━━━
 EOF
 )
 
 # Upload defconfig if we are doing defconfig
 if [ $TODO == "defconfig" ]; then
   log "Uploading defconfig..."
-  upload_file $OUTDIR/.config
+  upload_file $OUTDIR/.config "📄 *Kernel Configuration (defconfig)*"
   exit 0
 fi
 
@@ -341,9 +342,12 @@ fi
 send_msg "$text"
 
 # Always upload ZIP if found
-CAPTION="📦 Build: $AK3_ZIP_NAME
-Variant: $VARIANT
-LTO: $LTO_MODE"
+CAPTION="✅ *Build Successful!*
+━━━━━━━━━━━━━━━━━━━━
+📦 *File:* \`$AK3_ZIP_NAME\`
+🧪 *Variant:* $VARIANT
+⚡ *LTO:* \`$LTO_MODE\`
+━━━━━━━━━━━━━━━━━━━━"
 
 if [ -f "$WORKDIR/artifacts/$AK3_ZIP_NAME" ]; then
   upload_file "$WORKDIR/artifacts/$AK3_ZIP_NAME" "$CAPTION"
