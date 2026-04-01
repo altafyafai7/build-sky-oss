@@ -319,7 +319,7 @@ cd $WORKDIR
 build_vendor_dlkm() {
   log "Building vendor_dlkm.img..."
   local STAGING_DIR="$WORKDIR/staging"
-  local MODULES_LIST="$WORKDIR/xiaomi-sky-t-oss/modules.list.msm.sky"
+  local MODULES_LIST="$KSRC/modules.list.msm.sky"
   
   rm -rf "$STAGING_DIR"
   mkdir -p "$STAGING_DIR/lib/modules/$LINUX_VERSION"
@@ -438,10 +438,6 @@ else
   else
     send_msg "❌ Error: ZIP file not found in artifacts directory."
   fi
-fi
-
-if [ -f "$WORKDIR/artifacts/vendor_dlkm.img" ]; then
-  upload_file "$WORKDIR/artifacts/vendor_dlkm.img" "💿 *vendor_dlkm.img (EROFS)*"
 fi
 
 if [ $STATUS == "BETA" ]; then
