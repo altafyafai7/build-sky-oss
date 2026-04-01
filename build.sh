@@ -70,6 +70,9 @@ trap 'error "Failed at line $LINENO [$BASH_COMMAND]"' ERR
 # Import functions
 source $WORKDIR/functions.sh
 
+# Install erofs-utils (needed for vendor_dlkm.img)
+sudo apt-get update && sudo apt-get install -y erofs-utils
+
 # Set timezone
 sudo timedatectl set-timezone "$TIMEZONE" || export TZ="$TIMEZONE"
 
@@ -319,12 +322,21 @@ cd $WORKDIR
 build_vendor_dlkm() {
   log "Building vendor_dlkm.img..."
   local STAGING_DIR="$WORKDIR/staging"
-  local MODULES_LIST="$KSRC/modules.list.msm.sky"
+  local MODULES_LIST=""
+  
+  # Try to find modules list in various locations
+  if [ -f "$KSRC/modules.list.msm.sky" ]; then
+    MODULES_LIST="$KSRC/modules.list.msm.sky"
+  elif [ -f "$WORKDIR/modules.list.msm.sky" ]; then
+    MODULES_LIST="$WORKDIR/modules.list.msm.sky"
+  elif [ -f "$WORKDIR/sky-t-oss/modules.list.msm.sky" ]; then
+    MODULES_LIST="$WORKDIR/sky-t-oss/modules.list.msm.sky"
+  fi
   
   rm -rf "$STAGING_DIR"
   mkdir -p "$STAGING_DIR/lib/modules/$LINUX_VERSION"
 
-  if [ -f "$MODULES_LIST" ]; then
+  if [ -n "$MODULES_LIST" ]; then
     log "Using modules list: $(basename $MODULES_LIST)"
     while read -r module; do
       [[ -z "$module" || "$module" =~ ^# ]] && continue
@@ -334,7 +346,7 @@ build_vendor_dlkm() {
       fi
     done < "$MODULES_LIST"
   else
-    log "Modules list not found, copying all modules..."
+    log "Modules list not found, copying all modules from $OUTDIR..."
     find "$OUTDIR" -name "*.ko" -exec cp {} "$STAGING_DIR/lib/modules/$LINUX_VERSION/" \;
   fi
 
@@ -349,7 +361,7 @@ build_vendor_dlkm() {
     mkdir -p "$WORKDIR/artifacts"
     mv "$WORKDIR/vendor_dlkm.img" "$WORKDIR/artifacts/"
   else
-    log "Failed to create vendor_dlkm.img"
+    error "Failed to create vendor_dlkm.img"
   fi
 }
 
