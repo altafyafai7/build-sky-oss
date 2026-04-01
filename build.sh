@@ -318,6 +318,46 @@ cd $WORKDIR
 ## Post-compiling stuff
 cd $WORKDIR
 
+# Build vendor_dlkm.img
+build_vendor_dlkm() {
+  log "Building vendor_dlkm.img..."
+  local STAGING_DIR="$WORKDIR/staging"
+  local MODULES_LIST="$WORKDIR/xiaomi-sky-t-oss/modules.list.msm.sky"
+  
+  rm -rf "$STAGING_DIR"
+  mkdir -p "$STAGING_DIR/lib/modules/$LINUX_VERSION"
+
+  if [ -f "$MODULES_LIST" ]; then
+    log "Using modules list: $(basename $MODULES_LIST)"
+    while read -r module; do
+      [[ -z "$module" || "$module" =~ ^# ]] && continue
+      local find_res=$(find "$OUTDIR" -name "$module" | head -n 1)
+      if [ -n "$find_res" ]; then
+        cp "$find_res" "$STAGING_DIR/lib/modules/$LINUX_VERSION/"
+      fi
+    done < "$MODULES_LIST"
+  else
+    log "Modules list not found, copying all modules..."
+    find "$OUTDIR" -name "*.ko" -exec cp {} "$STAGING_DIR/lib/modules/$LINUX_VERSION/" \;
+  fi
+
+  # Run depmod
+  depmod -b "$STAGING_DIR" "$LINUX_VERSION"
+
+  # Create EROFS image
+  mkfs.erofs -z "lz4hc,9" -T 0 "$WORKDIR/vendor_dlkm.img" "$STAGING_DIR"
+
+  if [ -f "$WORKDIR/vendor_dlkm.img" ]; then
+    log "vendor_dlkm.img created successfully."
+    mkdir -p "$WORKDIR/artifacts"
+    mv "$WORKDIR/vendor_dlkm.img" "$WORKDIR/artifacts/"
+  else
+    log "Failed to create vendor_dlkm.img"
+  fi
+}
+
+build_vendor_dlkm
+
 # Collect modules
 log "Collecting modules..."
 mkdir -p $WORKDIR/modules
@@ -398,6 +438,10 @@ else
   else
     send_msg "❌ Error: ZIP file not found in artifacts directory."
   fi
+fi
+
+if [ -f "$WORKDIR/artifacts/vendor_dlkm.img" ]; then
+  upload_file "$WORKDIR/artifacts/vendor_dlkm.img" "💿 *vendor_dlkm.img (EROFS)*"
 fi
 
 if [ $STATUS == "BETA" ]; then
