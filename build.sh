@@ -77,7 +77,7 @@ sudo apt-get update && sudo apt-get install -y erofs-utils
 sudo timedatectl set-timezone "$TIMEZONE" || export TZ="$TIMEZONE"
 
 # Clone kernel source
-log "Cloning kernel source from $(simplify_gh_url "$KERNEL_REPO")"
+step_msg "Source Sync" "Cloning $(simplify_gh_url "$KERNEL_REPO") [$KERNEL_BRANCH]"
 git clone -q --depth=1 $KERNEL_REPO -b $KERNEL_BRANCH $KSRC
 
 cd $KSRC
@@ -90,11 +90,11 @@ cd $WORKDIR
 
 send_msg "🚀 *SKY Build Triggered*
 ━━━━━━━━━━━━━━━━━━━━
-📱 *Device:* \`Redmi 12 5G / Poco M6 Pro 5G (sky)\`
+📱 *Device:* \`sky (Redmi 12 5G)\`
 ⚙️ *Target:* \`$KVER\`
 🆔 *Commit:* [\`$COMMIT_HASH\`]($KERNEL_REPO/commit/$COMMIT_HASH)
-📝 *Message:* \`$COMMIT_MSG\`
-👤 *Builder:* \`$USER\`
+📝 *Msg:* \`$COMMIT_MSG\`
+👤 *User:* \`$USER\`
 ━━━━━━━━━━━━━━━━━━━━"
 
 # Set Kernel variant
@@ -108,7 +108,7 @@ AK3_ZIP_NAME=${AK3_ZIP_NAME//VARIANT/$VARIANT}
 CLANG_DIR="$WORKDIR/clang"
 CLANG_BIN="${CLANG_DIR}/bin"
 if [ -z "$CLANG_BRANCH" ]; then
-  log "🔽 Downloading Toolchain..."
+  step_msg "Toolchain" "Downloading Clang [Release]"
   wget -qO clang-archive "$CLANG_URL"
   mkdir -p "$CLANG_DIR"
   case "$(basename $CLANG_URL)" in
@@ -131,12 +131,12 @@ if [ -z "$CLANG_BRANCH" ]; then
     rm -rf $SINGLE_DIR
   fi
 else
-  log "🔽 Cloning Toolchain..."
+  step_msg "Toolchain" "Cloning Clang [$CLANG_BRANCH]"
   git clone --depth=1 -q "$CLANG_URL" -b "$CLANG_BRANCH" "$CLANG_DIR"
 fi
 
 # Clone GNU Assembler
-log "Cloning GNU Assembler..."
+step_msg "Toolchain" "Cloning GNU Assembler"
 GAS_DIR="$WORKDIR/gas"
 git clone --depth=1 -q \
   https://android.googlesource.com/platform/prebuilts/gas/linux-x86 \
@@ -187,12 +187,12 @@ else
   KMI_CHECK="$WORKDIR/py/kmi-check-5.x.py"
 fi
 ## Build GKI
-log "Generating configuration..."
+step_msg "Configuration" "Generating $KERNEL_DEFCONFIG"
 cd $KSRC
 make ${MAKE_ARGS[@]} $KERNEL_DEFCONFIG
 
 if [ "$DEFCONFIG_TO_MERGE" ]; then
-  log "Merging configurations..."
+  step_msg "Configuration" "Merging Vendor Fragments"
   if [ -f "scripts/kconfig/merge_config.sh" ]; then
     ./scripts/kconfig/merge_config.sh -m -O $OUTDIR $OUTDIR/.config $DEFCONFIG_TO_MERGE
     make ${MAKE_ARGS[@]} olddefconfig
@@ -225,12 +225,12 @@ if [[ "$LTO" == "full" ]]; then
   $KSRC/scripts/config --file $OUTDIR/.config --disable CONFIG_LTO_CLANG_THIN
   $KSRC/scripts/config --file $OUTDIR/.config --enable  CONFIG_LTO_CLANG
   $KSRC/scripts/config --file $OUTDIR/.config --enable  CONFIG_LTO_CLANG_FULL
-  log "[✓] LTO: Full LTO enabled"
+  step_msg "Optimization" "Full LTO Enabled"
 else
   $KSRC/scripts/config --file $OUTDIR/.config --disable CONFIG_LTO_CLANG_FULL
   $KSRC/scripts/config --file $OUTDIR/.config --enable  CONFIG_LTO_CLANG
   $KSRC/scripts/config --file $OUTDIR/.config --enable  CONFIG_LTO_CLANG_THIN
-  log "[✓] LTO: Thin LTO enabled"
+  step_msg "Optimization" "Thin LTO Enabled"
 fi
 
 # ── Detect final LTO mode for build notification ──────────────────────────────
@@ -278,11 +278,12 @@ if [ $TODO == "defconfig" ]; then
 fi
 
 # Build the actual kernel
-log "Building kernel..."
+step_msg "Compilation" "Starting Kernel Build"
 cd $KSRC
 make ${MAKE_ARGS[@]} 2>&1 | live_log
 
 # Check KMI Function symbol
+step_msg "Verification" "Checking KMI Symbols"
 if [ $(echo "$LINUX_VERSION_CODE" | head -c1) -eq 6 ]; then
   $KMI_CHECK "$KSRC/android/abi_gki_aarch64.stg" "$MODULE_SYMVERS" || true
 else
@@ -298,7 +299,7 @@ cd $WORKDIR
 
 # Build vendor_dlkm.img
 build_vendor_dlkm() {
-  log "Building vendor_dlkm.img..."
+  step_msg "Packaging" "Building vendor_dlkm.img"
   local STAGING_DIR="$WORKDIR/staging"
   local MODULES_LIST=""
   
@@ -335,7 +336,7 @@ build_vendor_dlkm() {
   mkfs.erofs -z "lz4hc,9" -T 0 "$WORKDIR/vendor_dlkm.img" "$STAGING_DIR"
 
   if [ -f "$WORKDIR/vendor_dlkm.img" ]; then
-    log "vendor_dlkm.img created successfully."
+    step_msg "Packaging" "vendor_dlkm.img Ready"
     mkdir -p "$WORKDIR/artifacts"
     mv "$WORKDIR/vendor_dlkm.img" "$WORKDIR/artifacts/"
   else
@@ -346,7 +347,7 @@ build_vendor_dlkm() {
 build_vendor_dlkm
 
 # Collect modules
-log "Collecting modules..."
+step_msg "Packaging" "Collecting Kernel Modules"
 mkdir -p $WORKDIR/modules
 find $OUTDIR -name "*.ko" -exec cp {} $WORKDIR/modules/ \;
 
@@ -360,7 +361,7 @@ cd $WORKDIR
 upload_file "$WORKDIR/$MODULES_ZIP" "📦 *Kernel Modules (.ko)*"
 
 # Clone AnyKernel
-log "Cloning anykernel from $(simplify_gh_url "$ANYKERNEL_REPO")"
+step_msg "AnyKernel" "Cloning AK3 Template"
 git clone -q --depth=1 $ANYKERNEL_REPO -b $ANYKERNEL_BRANCH anykernel
 
 # Copy modules to AnyKernel (Standard path for GKI modules in AK3)
@@ -388,7 +389,7 @@ fi
 
 # Zip the anykernel
 cd anykernel
-log "Zipping anykernel..."
+step_msg "AnyKernel" "Creating Flashable ZIP"
 cp $KERNEL_IMAGE .
 zip -r9 $WORKDIR/$AK3_ZIP_NAME ./*
 cd $OLDPWD
@@ -411,12 +412,12 @@ fi
 send_msg "$text"
 
 # Always upload ZIP if found
-CAPTION="📦 *Build Successfully Completed!*
+CAPTION="💎 *Premium Build Complete*
 ━━━━━━━━━━━━━━━━━━━━
 📄 *File:* \`$AK3_ZIP_NAME\`
 🧪 *Variant:* \`$VARIANT\`
 ⚡ *LTO:* \`$LTO_MODE\`
-✅ *Status:* \`GKI-Compliant\`
+✅ *Result:* \`GKI-SUCCESS\`
 ━━━━━━━━━━━━━━━━━━━━"
 
 if [ -f "$WORKDIR/artifacts/$AK3_ZIP_NAME" ]; then

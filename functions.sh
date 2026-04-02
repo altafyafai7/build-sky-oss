@@ -34,6 +34,19 @@ send_msg() {
     -d "text=$MESSAGE"
 }
 
+# step_msg
+step_msg() {
+  local STEP="$1"
+  local DETAILS="${2:-}"
+  local MSG
+  MSG="🔷 *Step:* \`$STEP\`"
+  if [ -n "$DETAILS" ]; then
+    MSG="$MSG
+🔹 *Details:* \`$DETAILS\`"
+  fi
+  send_msg "$MSG"
+}
+
 # Live Logging for Compilation (Edit Message)
 live_log() {
   local MSG_ID=""
@@ -43,12 +56,17 @@ live_log() {
   local CLEAN_LINE
   local PROGRESS_BAR
   local PERCENTAGE
+  local SPINNER=("⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏")
+  local SPIN_IDX=0
 
   # Initial Progress Message
   RESP=$(curl -s -X POST "https://api.telegram.org/bot$TG_BOT_TOKEN/sendMessage" \
     -d "chat_id=$TG_CHAT_ID" \
     -d "parse_mode=markdown" \
-    -d "text=🛠 *Compilation:* Starting...")
+    -d "text=💎 *Compiling SKY-OSS Kernel...*
+━━━━━━━━━━━━━━━━━━━━
+🔄 *Status:* \`Initializing...\`
+━━━━━━━━━━━━━━━━━━━━")
   
   # Extract message_id from JSON response
   MSG_ID=$(echo "$RESP" | grep -o '"message_id":[0-9]*' | cut -d: -f2)
@@ -63,15 +81,18 @@ live_log() {
           CLEAN_LINE=$(echo "$line" | sed 's/[[:space:]]\+/ /g' | sed 's/\*/\\*/g' | cut -d' ' -f2-) # Escape markdown and remove CC/LD
           # Simple progress bar logic (assuming ~1500-2000 steps for a full build, this is just visual)
           PROGRESS_BAR="[$(printf '%0.s#' $(seq 1 $((LINE_COUNT / 100))))$(printf '%0.s-' $(seq 1 $((20 - LINE_COUNT / 100))))]"
+          SPIN_IDX=$(( (SPIN_IDX + 1) % 10 ))
           
           curl -s -X POST "https://api.telegram.org/bot$TG_BOT_TOKEN/editMessageText" \
             -d "chat_id=$TG_CHAT_ID" \
             -d "message_id=$MSG_ID" \
             -d "parse_mode=markdown" \
-            -d "text=🔨 *Compiling...*
+            -d "text=🔨 *Compiling:* \`${SPINNER[$SPIN_IDX]}\`
+━━━━━━━━━━━━━━━━━━━━
+🔢 *Step:* \`$LINE_COUNT\`
 \`$PROGRESS_BAR\`
 📍 *Current:* \`$CLEAN_LINE\`
-🔢 *Step:* \`$LINE_COUNT\`" > /dev/null
+━━━━━━━━━━━━━━━━━━━━" > /dev/null
        fi
     fi
   done
@@ -84,7 +105,8 @@ live_log() {
     -d "text=✅ *Compilation Finished!*
 ━━━━━━━━━━━━━━━━━━━━
 📦 *Total Steps:* \`$LINE_COUNT\`
-✨ *Build Status:* Success" > /dev/null
+✨ *Build Status:* \`Success\`
+━━━━━━━━━━━━━━━━━━━━" > /dev/null
 }
 
 # KernelSU-related functions
