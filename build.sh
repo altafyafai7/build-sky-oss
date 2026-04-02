@@ -90,12 +90,11 @@ cd $WORKDIR
 
 send_msg "🚀 *SKY Build Triggered*
 ━━━━━━━━━━━━━━━━━━━━
-📦 *Kernel:* \`$KERNEL_NAME\`
-⚙️ *Ver:* \`$KVER\`
+📱 *Device:* \`Redmi 12 5G / Poco M6 Pro 5G (sky)\`
+⚙️ *Target:* \`$KVER\`
 🆔 *Commit:* [\`$COMMIT_HASH\`]($KERNEL_REPO/commit/$COMMIT_HASH)
-📝 *Changes:* \`$COMMIT_MSG\`
-👤 *User:* \`$USER\`
-💻 *Host:* \`$HOST\`
+📝 *Message:* \`$COMMIT_MSG\`
+👤 *Builder:* \`$USER\`
 ━━━━━━━━━━━━━━━━━━━━"
 
 # Set Kernel variant
@@ -109,7 +108,7 @@ AK3_ZIP_NAME=${AK3_ZIP_NAME//VARIANT/$VARIANT}
 CLANG_DIR="$WORKDIR/clang"
 CLANG_BIN="${CLANG_DIR}/bin"
 if [ -z "$CLANG_BRANCH" ]; then
-  log "🔽 Downloading Clang..."
+  log "🔽 Downloading Toolchain..."
   wget -qO clang-archive "$CLANG_URL"
   mkdir -p "$CLANG_DIR"
   case "$(basename $CLANG_URL)" in
@@ -132,7 +131,7 @@ if [ -z "$CLANG_BRANCH" ]; then
     rm -rf $SINGLE_DIR
   fi
 else
-  log "🔽 Cloning Clang..."
+  log "🔽 Cloning Toolchain..."
   git clone --depth=1 -q "$CLANG_URL" -b "$CLANG_BRANCH" "$CLANG_DIR"
 fi
 
@@ -188,12 +187,12 @@ else
   KMI_CHECK="$WORKDIR/py/kmi-check-5.x.py"
 fi
 ## Build GKI
-log "Generating config..."
+log "Generating configuration..."
 cd $KSRC
 make ${MAKE_ARGS[@]} $KERNEL_DEFCONFIG
 
 if [ "$DEFCONFIG_TO_MERGE" ]; then
-  log "Merging configs..."
+  log "Merging configurations..."
   if [ -f "scripts/kconfig/merge_config.sh" ]; then
     ./scripts/kconfig/merge_config.sh -m -O $OUTDIR $OUTDIR/.config $DEFCONFIG_TO_MERGE
     make ${MAKE_ARGS[@]} olddefconfig
@@ -215,42 +214,30 @@ if [ "$TODO" == "kernel" ]; then
   $KSRC/scripts/config --file $OUTDIR/.config --disable CONFIG_LOCALVERSION_AUTO
   sed -i 's/echo "+"/# echo "+"/g' $KSRC/scripts/setlocalversion
   make ${MAKE_ARGS[@]} olddefconfig
-  log "Kernel localversion set to: -$KERNEL_NAME-sky/$SUFFIX"
+  log "Localversion set: -$KERNEL_NAME-sky/$SUFFIX"
   cd $WORKDIR
 fi
 
 # ── Apply LTO mode based on $LTO env variable ────────────────────────────────
-# Passed in from the workflow input (thin | full). Defaults to thin if unset.
-#
-#   thin → Thin LTO  — parallel link, ~3–4 GB RAM, ~2–5 min.
-#                       Used by Google in official GKI builds. CFI fully supported.
-#                       Recommended for CI, testing, and frequent builds.
-#
-#   full → Full LTO  — serial whole-program link, ~14–18 GB RAM, ~15–30 min.
-#                       Marginally better dead-code elimination (~2–4% smaller binary).
-#                       Real-world performance delta on device: negligible.
-#                       Use only for final/release builds on a capable runner.
-#
-# Both modes are GKI-compliant and CFI_CLANG compatible.
 LTO="${LTO:-thin}"
 $KSRC/scripts/config --file $OUTDIR/.config --disable CONFIG_LTO_NONE
 if [[ "$LTO" == "full" ]]; then
   $KSRC/scripts/config --file $OUTDIR/.config --disable CONFIG_LTO_CLANG_THIN
   $KSRC/scripts/config --file $OUTDIR/.config --enable  CONFIG_LTO_CLANG
   $KSRC/scripts/config --file $OUTDIR/.config --enable  CONFIG_LTO_CLANG_FULL
-  log "[✓] LTO mode pinned to Full LTO (serial whole-program optimisation + CFI)"
+  log "[✓] LTO: Full LTO enabled"
 else
   $KSRC/scripts/config --file $OUTDIR/.config --disable CONFIG_LTO_CLANG_FULL
   $KSRC/scripts/config --file $OUTDIR/.config --enable  CONFIG_LTO_CLANG
   $KSRC/scripts/config --file $OUTDIR/.config --enable  CONFIG_LTO_CLANG_THIN
-  log "[✓] LTO mode pinned to Thin LTO (parallel LLVM link + CFI)"
+  log "[✓] LTO: Thin LTO enabled"
 fi
 
 # ── Detect final LTO mode for build notification ──────────────────────────────
 if grep -q "^CONFIG_LTO_CLANG_THIN=y" "$OUTDIR/.config"; then
-  LTO_MODE="Thin LTO (LLVM)"
+  LTO_MODE="Thin LTO"
 elif grep -q "^CONFIG_LTO_CLANG_FULL=y" "$OUTDIR/.config"; then
-  LTO_MODE="Full LTO (LLVM, whole-program)"
+  LTO_MODE="Full LTO"
 else
   LTO_MODE="Disabled"
 fi
@@ -264,30 +251,21 @@ cd $WORKDIR
 # ── Telegram build notification message ───────────────────────────────────────
 text=$(
   cat << EOF
-✨ *$KERNEL_NAME — Redmi 12 5G / Poco M6 Pro 5G (sky)* ✨
+✨ *$KERNEL_NAME OSS — SKY* ✨
 ━━━━━━━━━━━━━━━━━━━━
 🛠 *Technical Details:*
 • 🐧 *Kernel Version:* \`$LINUX_VERSION\`
 • ⚡ *LTO Mode:* \`$LTO_MODE\`
 • 🛡 *Compiler:* \`$COMPILER_STRING\`
 • 📅 *Build Date:* \`$KBUILD_BUILD_TIMESTAMP\`
-• 🆔 *Commit ID:* [\`$COMMIT_HASH\`]($KERNEL_REPO/commit/$COMMIT_HASH)
+• 🆔 *Commit:* [\`$COMMIT_HASH\`]($KERNEL_REPO/commit/$COMMIT_HASH)
 • 📝 *Changes:* \`$COMMIT_MSG\`
 
-🌟 *Features:*
-• 🔌 Full vendor config merge (hardware_info.ko)
-• 👆 FT8720/NT36672C support included
-
-⚠️ *Usage Warnings:*
-• 📍 OSS-based kernel for **sky only**.
-• 🚫 Do **not** flash on other devices!
-• ✅ KMI symbol verification & CFI enforced.
-
 👥 *Credits:* 
-• @lostark13: OSS Kernel source.
-• @AltafYafai: Upstreaming to latest.
+• @lostark13: OSS Source
+• @AltafYafai: Project Maintainer
 
-🌐 *Source:* [GitHub Repository]($KERNEL_REPO)
+🌐 *Source:* [GitHub]($KERNEL_REPO)
 ━━━━━━━━━━━━━━━━━━━━
 EOF
 )
@@ -433,11 +411,12 @@ fi
 send_msg "$text"
 
 # Always upload ZIP if found
-CAPTION="✅ *Build Successful!*
+CAPTION="📦 *Build Successfully Completed!*
 ━━━━━━━━━━━━━━━━━━━━
-📦 *File:* \`$AK3_ZIP_NAME\`
-🧪 *Variant:* $VARIANT
+📄 *File:* \`$AK3_ZIP_NAME\`
+🧪 *Variant:* \`$VARIANT\`
 ⚡ *LTO:* \`$LTO_MODE\`
+✅ *Status:* \`GKI-Compliant\`
 ━━━━━━━━━━━━━━━━━━━━"
 
 if [ -f "$WORKDIR/artifacts/$AK3_ZIP_NAME" ]; then

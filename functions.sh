@@ -38,15 +38,17 @@ send_msg() {
 live_log() {
   local MSG_ID=""
   local LINE_COUNT=0
-  local UPDATE_LIMIT=15 # Update every 15 compilation steps to avoid rate limits
+  local UPDATE_LIMIT=20 # Update every 20 compilation steps to avoid rate limits
   local RESP
   local CLEAN_LINE
+  local PROGRESS_BAR
+  local PERCENTAGE
 
   # Initial Progress Message
   RESP=$(curl -s -X POST "https://api.telegram.org/bot$TG_BOT_TOKEN/sendMessage" \
     -d "chat_id=$TG_CHAT_ID" \
     -d "parse_mode=markdown" \
-    -d "text=🔨 *Compilation Progress:* Starting...")
+    -d "text=🛠 *Compilation:* Starting...")
   
   # Extract message_id from JSON response
   MSG_ID=$(echo "$RESP" | grep -o '"message_id":[0-9]*' | cut -d: -f2)
@@ -58,12 +60,18 @@ live_log() {
        ((LINE_COUNT++))
        # Update the existing message every N steps
        if (( LINE_COUNT % UPDATE_LIMIT == 0 )); then
-          CLEAN_LINE=$(echo "$line" | sed 's/[[:space:]]\+/ /g' | sed 's/\*/\\*/g') # Escape markdown
+          CLEAN_LINE=$(echo "$line" | sed 's/[[:space:]]\+/ /g' | sed 's/\*/\\*/g' | cut -d' ' -f2-) # Escape markdown and remove CC/LD
+          # Simple progress bar logic (assuming ~1500-2000 steps for a full build, this is just visual)
+          PROGRESS_BAR="[$(printf '%0.s#' $(seq 1 $((LINE_COUNT / 100))))$(printf '%0.s-' $(seq 1 $((20 - LINE_COUNT / 100))))]"
+          
           curl -s -X POST "https://api.telegram.org/bot$TG_BOT_TOKEN/editMessageText" \
             -d "chat_id=$TG_CHAT_ID" \
             -d "message_id=$MSG_ID" \
             -d "parse_mode=markdown" \
-            -d "text=🔨 *Compiling:* \`[$LINE_COUNT]\` \`$CLEAN_LINE\`" > /dev/null
+            -d "text=🔨 *Compiling...*
+\`$PROGRESS_BAR\`
+📍 *Current:* \`$CLEAN_LINE\`
+🔢 *Step:* \`$LINE_COUNT\`" > /dev/null
        fi
     fi
   done
@@ -73,7 +81,10 @@ live_log() {
     -d "chat_id=$TG_CHAT_ID" \
     -d "message_id=$MSG_ID" \
     -d "parse_mode=markdown" \
-    -d "text=✅ *Compilation Finished:* \`$LINE_COUNT\` steps completed." > /dev/null
+    -d "text=✅ *Compilation Finished!*
+━━━━━━━━━━━━━━━━━━━━
+📦 *Total Steps:* \`$LINE_COUNT\`
+✨ *Build Status:* Success" > /dev/null
 }
 
 # KernelSU-related functions
@@ -136,14 +147,17 @@ error() {
   local err_txt
   err_txt=$(
     cat << EOF
-❌ *Build Failed!*
+🛑 *Build Interrupted!*
 ━━━━━━━━━━━━━━━━━━━━
-⚠️ *Error:* \`$*\`
+⚠️ *Error Detail:*
+\`$*\`
+
+🔍 *Check the logs below for more details.*
 ━━━━━━━━━━━━━━━━━━━━
 EOF
   )
   echo -e "[ERROR] $*"
   send_msg "$err_txt"
-  upload_file "$WORKDIR/build.log" "📄 *Build Log (Failure)*"
+  upload_file "$WORKDIR/build.log" "📄 *Failure Analysis (Build Log)*"
   exit 1
 }
