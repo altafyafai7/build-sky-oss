@@ -339,6 +339,7 @@ build_vendor_dlkm() {
     step_msg "Packaging" "vendor_dlkm.img Ready"
     mkdir -p "$WORKDIR/artifacts"
     mv "$WORKDIR/vendor_dlkm.img" "$WORKDIR/artifacts/"
+    upload_file "$WORKDIR/artifacts/vendor_dlkm.img" "📦 *Vendor Module Image (vendor_dlkm.img)*"
   else
     error "Failed to create vendor_dlkm.img"
   fi
