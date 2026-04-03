@@ -347,6 +347,54 @@ build_vendor_dlkm() {
 
 build_vendor_dlkm
 
+# Clone AnyKernel (Move earlier to use tools for boot.img)
+step_msg "AnyKernel" "Cloning AK3 Template"
+git clone -q --depth=1 $ANYKERNEL_REPO -b $ANYKERNEL_BRANCH anykernel
+
+# Build boot.img
+build_boot_img() {
+  step_msg "Packaging" "Building boot.img"
+  local BOOT_IMG_URL="https://github.com/vortex-project/gki-artifacts/raw/main/boot/boot-6.1.img"
+  local MAGISKBOOT="$WORKDIR/anykernel/tools/magiskboot"
+  
+  if [ "$KVER" == "5.10" ]; then
+    BOOT_IMG_URL="https://github.com/vortex-project/gki-artifacts/raw/main/boot/boot-5.10.img"
+  fi
+
+  log "Downloading base boot image from $BOOT_IMG_URL"
+  wget -qO base_boot.img "$BOOT_IMG_URL"
+
+  if [ ! -f "$MAGISKBOOT" ]; then
+    log "magiskboot not found in AK3 tools, downloading standalone..."
+    wget -qO magiskboot.zip "https://github.com/AltafYafai/AnyKernel3/raw/sky/tools/magiskboot.zip"
+    unzip -q magiskboot.zip magiskboot
+    MAGISKBOOT="./magiskboot"
+    chmod +x "$MAGISKBOOT"
+  fi
+
+  # Replace kernel
+  "$MAGISKBOOT" unpack base_boot.img
+  if [ -f kernel ]; then
+    rm kernel
+  fi
+  cp "$KERNEL_IMAGE" kernel
+  "$MAGISKBOOT" repack base_boot.img "$WORKDIR/boot.img"
+
+  if [ -f "$WORKDIR/boot.img" ]; then
+    step_msg "Packaging" "boot.img Ready"
+    mkdir -p "$WORKDIR/artifacts"
+    mv "$WORKDIR/boot.img" "$WORKDIR/artifacts/"
+    upload_file "$WORKDIR/artifacts/boot.img" "📦 *Kernel Boot Image (boot.img)*"
+  else
+    log "Failed to create boot.img, skipping..."
+  fi
+
+  # Cleanup
+  rm -f base_boot.img magiskboot magiskboot.zip kernel ramdisk.cpio* dtb header
+}
+
+build_boot_img
+
 # Collect modules
 step_msg "Packaging" "Collecting Kernel Modules"
 mkdir -p $WORKDIR/modules
@@ -360,10 +408,6 @@ cd $WORKDIR
 
 # Upload modules separately
 upload_file "$WORKDIR/$MODULES_ZIP" "📦 *Kernel Modules (.ko)*"
-
-# Clone AnyKernel
-step_msg "AnyKernel" "Cloning AK3 Template"
-git clone -q --depth=1 $ANYKERNEL_REPO -b $ANYKERNEL_BRANCH anykernel
 
 # Copy modules to AnyKernel (Standard path for GKI modules in AK3)
 mkdir -p $WORKDIR/anykernel/modules/vendor/lib/modules
