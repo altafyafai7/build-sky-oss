@@ -60,12 +60,32 @@ def parse_stg_file(filepath: str) -> Dict[str, int]:
     return symbols
 
 
+def parse_allowed_breaks(filepath: str) -> Set[str]:
+    """Parse the .stg.allowed_breaks file to extract function symbols with allowed CRC breaks."""
+    allowed_symbols: Set[str] = set()
+    if not os.path.isfile(filepath):
+        return allowed_symbols
+    pattern = re.compile(r"function symbol '([^']+)' CRC changed")
+    with open(filepath, 'r', encoding="utf-8") as f:
+        for line in f:
+            match = pattern.search(line)
+            if match:
+                allowed_symbols.add(match.group(1))
+    return allowed_symbols
+
+
 def main(abi_gki_aarch64_stg_file: str, vmlinux_symvers_file: str) -> int:
     assert os.path.isfile(abi_gki_aarch64_stg_file)
     assert os.path.isfile(vmlinux_symvers_file)
 
     # Parse the .stg file
     abi_gki_aarch64_elf_symbols = parse_stg_file(abi_gki_aarch64_stg_file)
+
+    # Parse allowed_breaks file to get symbols with allowed CRC mismatches
+    allowed_breaks_file = abi_gki_aarch64_stg_file + ".allowed_breaks"
+    allowed_symbols = parse_allowed_breaks(allowed_breaks_file)
+    if allowed_symbols:
+        print(f"Skipping {len(allowed_symbols)} symbol(s) listed in allowed_breaks")
 
     # Parse vmlinux.symvers file (unchanged)
     with open(vmlinux_symvers_file, 'r', encoding="utf-8") as f:
@@ -82,6 +102,7 @@ def main(abi_gki_aarch64_stg_file: str, vmlinux_symvers_file: str) -> int:
         (key, abi_gki_aarch64_elf_symbols[key], vmlinux_symvers[key])
         for key in set(abi_gki_aarch64_elf_symbols.keys()) & set(vmlinux_symvers.keys())
         if abi_gki_aarch64_elf_symbols[key] != vmlinux_symvers[key]
+        and key not in allowed_symbols
     ]
 
     if not diff_crc_items:
