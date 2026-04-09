@@ -9,19 +9,39 @@
 upload_file() {
   local FILE="$1"
   local CAPTION="${2:-}"
+  local RESP
+  local FILE_SIZE
 
-  if ! [ -f $FILE ]; then
+  if ! [ -f "$FILE" ]; then
     error "file $FILE doesn't exist"
+  fi
+
+  FILE_SIZE=$(stat -c%s "$FILE")
+  # Telegram Bot API limit is 50MB (52428800 bytes)
+  if [ "$FILE_SIZE" -gt 52428800 ]; then
+    log "⚠️ File $(basename "$FILE") is too large for Telegram Bot API ($((FILE_SIZE/1024/1024))MB > 50MB). Skipping Telegram upload."
+    log "🔗 You can find it in the GitHub Release/Artifacts."
+    return 0
   fi
 
   chmod 777 "$FILE"
 
-  curl -s -F "document=@${FILE}" \
+  RESP=$(curl -s -w "\n%{http_code}" -F "document=@${FILE}" \
     -F "chat_id=${TG_CHAT_ID}" \
     -F "caption=${CAPTION}" \
     -F "parse_mode=markdown" \
     -F "disable_web_page_preview=true" \
-    "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendDocument"
+    "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendDocument")
+  
+  local HTTP_CODE=$(echo "$RESP" | tail -n 1)
+  local BODY=$(echo "$RESP" | head -n -1)
+
+  if [ "$HTTP_CODE" -ne 200 ]; then
+    log "❌ Telegram upload failed for $(basename "$FILE") with code $HTTP_CODE"
+    log "📄 Response: $BODY"
+  else
+    echo "✅ Successfully uploaded $(basename "$FILE") to Telegram"
+  fi
 }
 
 # send_msg

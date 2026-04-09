@@ -355,30 +355,49 @@ git clone -q --depth=1 $ANYKERNEL_REPO -b $ANYKERNEL_BRANCH anykernel
 build_boot_img() {
   step_msg "Packaging" "Building boot.img"
   local BOOT_IMG_URL="https://github.com/vortex-project/gki-artifacts/raw/main/boot/boot-6.1.img"
-  local MAGISKBOOT="$WORKDIR/anykernel/tools/magiskboot"
+  local MAGISKBOOT="$WORKDIR/magiskboot"
   
   if [ "$KVER" == "5.10" ]; then
     BOOT_IMG_URL="https://github.com/vortex-project/gki-artifacts/raw/main/boot/boot-5.10.img"
   fi
 
   log "Downloading base boot image from $BOOT_IMG_URL"
-  wget -qO base_boot.img "$BOOT_IMG_URL"
+  wget -qO base_boot.img "$BOOT_IMG_URL" || error "Failed to download base boot image"
+
+  # Determine architecture for magiskboot
+  local ARCH=$(uname -m)
+  log "Determined runner architecture: $ARCH"
+  
+  # Download magiskboot for the correct architecture
+  if [[ "$ARCH" == "x86_64" ]]; then
+    log "Downloading x86_64 magiskboot..."
+    wget -qO magiskboot.zip "https://github.com/AltafYafai/AnyKernel3/raw/sky/tools/magiskboot-x86_64.zip" || \
+    wget -qO magiskboot.zip "https://github.com/AltafYafai/AnyKernel3/raw/sky/tools/magiskboot.zip"
+  else
+    log "Using default magiskboot.zip..."
+    wget -qO magiskboot.zip "https://github.com/AltafYafai/AnyKernel3/raw/sky/tools/magiskboot.zip"
+  fi
+  
+  unzip -q -o magiskboot.zip magiskboot || log "Warning: Unzip failed, checking if magiskboot already exists"
+  chmod +x "$MAGISKBOOT"
 
   if [ ! -f "$MAGISKBOOT" ]; then
-    log "magiskboot not found in AK3 tools, downloading standalone..."
-    wget -qO magiskboot.zip "https://github.com/AltafYafai/AnyKernel3/raw/sky/tools/magiskboot.zip"
-    unzip -q magiskboot.zip magiskboot
-    MAGISKBOOT="./magiskboot"
-    chmod +x "$MAGISKBOOT"
+    error "magiskboot binary not found even after download attempt"
   fi
 
   # Replace kernel
-  "$MAGISKBOOT" unpack base_boot.img
-  if [ -f kernel ]; then
-    rm kernel
+  log "Unpacking base boot image..."
+  "$MAGISKBOOT" unpack base_boot.img || error "Failed to unpack base boot image"
+  
+  if [ ! -f "$KERNEL_IMAGE" ]; then
+    error "Kernel image not found at $KERNEL_IMAGE"
   fi
+  
+  rm -f kernel
   cp "$KERNEL_IMAGE" kernel
-  "$MAGISKBOOT" repack base_boot.img "$WORKDIR/boot.img"
+  
+  log "Repacking boot image..."
+  "$MAGISKBOOT" repack base_boot.img "$WORKDIR/boot.img" || error "Failed to repack boot image"
 
   if [ -f "$WORKDIR/boot.img" ]; then
     step_msg "Packaging" "boot.img Ready"
