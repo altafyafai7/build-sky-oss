@@ -2,6 +2,7 @@
 
 # Constants
 WORKDIR="$(pwd)"
+KVER="${KVER:-6.1}"
 if [ "$KVER" == "6.6" ]; then
   RELEASE="v0.3"
 elif [ "$KVER" == "5.10" ]; then
@@ -77,8 +78,16 @@ sudo apt-get update && sudo apt-get install -y erofs-utils
 sudo timedatectl set-timezone "$TIMEZONE" || export TZ="$TIMEZONE"
 
 # Clone kernel source
-step_msg "Source Sync" "Cloning $(simplify_gh_url "$KERNEL_REPO") [$KERNEL_BRANCH]"
-git clone -q --depth=1 $KERNEL_REPO -b $KERNEL_BRANCH $KSRC
+if [ -d "$KSRC" ]; then
+  step_msg "Source Sync" "Updating existing source in $KSRC"
+  cd $KSRC
+  git fetch -q --depth=1 origin $KERNEL_BRANCH
+  git reset -q --hard FETCH_HEAD
+  cd $WORKDIR
+else
+  step_msg "Source Sync" "Cloning $(simplify_gh_url "$KERNEL_REPO") [$KERNEL_BRANCH]"
+  git clone -q --depth=1 $KERNEL_REPO -b $KERNEL_BRANCH $KSRC
+fi
 
 cd $KSRC
 COMMIT_HASH=$(git rev-parse --short HEAD)
@@ -161,6 +170,7 @@ export KCFLAGS="-w"
 if [ $(echo "$LINUX_VERSION_CODE" | head -c1) -eq 6 ]; then
   MAKE_ARGS=(
     LLVM=1
+    CCACHE=ccache
     ARCH=arm64
     CROSS_COMPILE=aarch64-linux-gnu-
     CROSS_COMPILE_COMPAT=arm-linux-gnueabi-
@@ -170,6 +180,7 @@ if [ $(echo "$LINUX_VERSION_CODE" | head -c1) -eq 6 ]; then
 else
   MAKE_ARGS=(
     LLVM=1
+    CCACHE=ccache
     LLVM_IAS=1
     ARCH=arm64
     CROSS_COMPILE=aarch64-linux-gnu-
