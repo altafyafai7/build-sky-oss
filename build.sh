@@ -75,7 +75,12 @@ sudo timedatectl set-timezone "$TIMEZONE" || export TZ="$TIMEZONE"
 
 # Clone kernel source
 log "Cloning kernel source from $(simplify_gh_url "$KERNEL_REPO")"
-git clone -q --depth=1 $KERNEL_REPO -b $KERNEL_BRANCH $KSRC
+if [ -n "$GH_TOKEN" ]; then
+  KERNEL_REPO_AUTH="${KERNEL_REPO/https:\/\/github.com\//https:\/\/x-access-token:${GH_TOKEN}@github.com\/}"
+else
+  KERNEL_REPO_AUTH="$KERNEL_REPO"
+fi
+git clone -q --depth=1 $KERNEL_REPO_AUTH -b $KERNEL_BRANCH $KSRC
 
 cd $KSRC
 LINUX_VERSION=$(make kernelversion)
