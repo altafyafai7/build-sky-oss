@@ -64,7 +64,7 @@ KSRC="$WORKDIR/ksrc"
 KERNEL_PATCHES="$WORKDIR/kernel-patches"
 
 # Handle error
-exec > >(tee $WORKDIR/build.log) 2>&1
+# exec > >(tee $WORKDIR/build.log) 2>&1
 trap 'error "Failed at line $LINENO [$BASH_COMMAND]"' ERR
 
 # Import functions
